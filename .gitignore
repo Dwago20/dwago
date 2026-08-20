@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+codemap-out/
+*.egg-info/
+dist/
+build/
+dwago-out/
+brain-*.html
+.DS_Store

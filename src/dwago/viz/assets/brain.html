@@ -1,0 +1,1875 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Brain</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { height:100%; overflow:hidden; background:#070b14; }
+  canvas { position:fixed; inset:0; width:100%; height:100%; }
+  #gl { cursor:grab; }
+  #gl.grabbing { cursor:grabbing; }
+  #hud { pointer-events:none; }
+  #brand { position:fixed; left:22px; bottom:18px; z-index:3; pointer-events:none;
+    font:600 13px/1.4 system-ui,sans-serif; color:rgba(224,236,255,.88);
+    letter-spacing:.18em; text-transform:uppercase; text-shadow:0 1px 12px rgba(0,0,0,.8); }
+  #brand small { display:block; font-weight:400; letter-spacing:.03em;
+    text-transform:none; color:rgba(160,180,210,.75); margin-top:3px; }
+  #hint { position:fixed; right:22px; bottom:18px; z-index:3; text-align:right;
+    pointer-events:none; font:400 11.5px/1.65 system-ui,sans-serif;
+    color:rgba(160,180,210,.65); text-shadow:0 1px 8px rgba(0,0,0,.8); }
+  #tip { position:fixed; display:none; z-index:4; pointer-events:none;
+    background:rgba(8,12,24,.94); border:1px solid rgba(255,196,110,.30);
+    color:#f2e8d8; font:500 12px ui-monospace,Menlo,monospace;
+    padding:5px 10px; border-radius:7px; white-space:nowrap; }
+  #card { position:fixed; display:none; z-index:4; right:20px; top:20px; width:252px;
+    background:rgba(8,12,24,.92); border:1px solid rgba(255,196,110,.26);
+    border-radius:13px; padding:15px 17px; backdrop-filter:blur(14px);
+    box-shadow:0 12px 40px rgba(0,0,0,.55); color:#eef2ff;
+    font:400 12px/1.5 system-ui,sans-serif; }
+  #card b { display:block; font:600 14px system-ui,sans-serif; margin-bottom:2px; }
+  #card span { display:block; font:400 10.5px ui-monospace,monospace;
+    color:rgba(170,188,214,.9); word-break:break-all; margin-bottom:8px; }
+  #card em { display:block; font-style:normal; font:600 10px system-ui,sans-serif;
+    letter-spacing:.08em; text-transform:uppercase; color:#ffc46e; margin-bottom:6px; }
+  #card i { display:block; font-style:normal; color:rgba(178,194,220,.85); }
+  #panel { position:fixed; left:18px; top:50%; transform:translateY(-50%); z-index:5;
+    display:flex; flex-direction:column; gap:4px; width:122px;
+    padding:6px;
+    border-radius:15px;
+    border:1px solid rgba(255,255,255,.11);
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,0) 42%),
+      rgba(16,21,34,.74);
+    box-shadow:0 8px 22px rgba(4,8,16,.30), inset 0 1px rgba(255,255,255,.06);
+    isolation:isolate; }
+  #panel b { font:500 8.5px system-ui,sans-serif; letter-spacing:.20em;
+    color:rgba(196,208,228,.42); margin:7px 8px 3px; }
+  #panel b:first-child { margin-top:3px; }
+  #panel button { all:unset; position:relative; cursor:pointer; text-align:center;
+    font:500 10.5px system-ui,sans-serif; letter-spacing:.14em; text-transform:uppercase;
+    color:rgba(196,208,228,.55);
+    padding:9px 4px; border-radius:10px;
+    border:1px solid transparent;
+    background:rgba(255,255,255,.04);
+    transition:color .18s cubic-bezier(.25,.1,.25,1),
+               border-color .2s cubic-bezier(.25,.1,.25,1),
+               background .2s cubic-bezier(.25,.1,.25,1),
+               box-shadow .2s cubic-bezier(.25,.1,.25,1); }
+  #panel button:hover { color:rgba(240,246,252,.95); background:rgba(255,255,255,.075); }
+  #panel button.on {
+    color:#171c14;
+    background:#f4f2ea; border-color:#f4f2ea;
+    box-shadow:0 6px 16px rgba(4,8,16,.24); }
+  #panel button:focus-visible { outline:2px solid rgba(240,246,232,.9); outline-offset:2px; }
+  /* entrance: staggered clip wipe, sylva-style */
+  #panel button, #panel b { clip-path:inset(0 0 105% 0); }
+  .ui-ready #panel button, .ui-ready #panel b {
+    clip-path:inset(0 0 -30% 0);
+    transition:clip-path .9s cubic-bezier(.16,1,.3,1) var(--d,0ms),
+               color .18s cubic-bezier(.25,.1,.25,1),
+               border-color .2s cubic-bezier(.25,.1,.25,1),
+               background .2s cubic-bezier(.25,.1,.25,1),
+               box-shadow .2s cubic-bezier(.25,.1,.25,1); }
+  /* specular rim: a lit border edge that points at the pointer */
+  #card { right:196px; }
+  #files { position:fixed; right:18px; top:50%; transform:translateY(-50%); z-index:5;
+    display:flex; flex-direction:column; width:168px; max-height:72vh;
+    padding:6px; border-radius:15px;
+    border:1px solid rgba(255,255,255,.11);
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,0) 42%),
+      rgba(16,21,34,.74);
+    box-shadow:0 8px 22px rgba(4,8,16,.30), inset 0 1px rgba(255,255,255,.06);
+    isolation:isolate; }
+  #files input { all:unset; box-sizing:border-box; width:100%; padding:8px 10px; margin-bottom:4px;
+    border-radius:10px; border:1px solid transparent; background:rgba(255,255,255,.05);
+    font:500 10.5px ui-monospace,Menlo,monospace; letter-spacing:.04em;
+    color:rgba(240,246,252,.9); }
+  #files input::placeholder { color:rgba(196,208,228,.38); }
+  #files input:focus { border-color:rgba(240,246,232,.35); }
+  #flist { overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin;
+    scrollbar-color:rgba(255,255,255,.14) transparent; }
+  #flist b { display:block; font:500 8.5px system-ui,sans-serif; letter-spacing:.18em;
+    text-transform:uppercase; color:rgba(196,208,228,.42); margin:8px 8px 3px; }
+  .frow { display:flex; align-items:center; gap:7px; padding:5px 8px; border-radius:8px;
+    border:1px solid transparent; cursor:pointer;
+    font:500 10.5px ui-monospace,Menlo,monospace; color:rgba(196,208,228,.62);
+    transition:color .18s cubic-bezier(.25,.1,.25,1), background .2s cubic-bezier(.25,.1,.25,1); }
+  .frow i { flex:none; width:6px; height:6px; border-radius:50%; }
+  .frow:hover { color:rgba(240,246,252,.95); background:rgba(255,255,255,.075); }
+  .frow.sel { color:#171c14; background:#f4f2ea; box-shadow:0 4px 12px rgba(4,8,16,.24); }
+  #mini { position:fixed; left:18px; top:16px; z-index:5; width:196px; height:150px;
+    cursor:pointer; }
+  #minilab { position:fixed; left:18px; top:168px; z-index:5; width:196px; text-align:center;
+    pointer-events:none; font:500 8.5px system-ui,sans-serif; letter-spacing:.20em;
+    text-transform:uppercase; color:rgba(196,208,228,.42); }
+  [data-spec]{ --spec-angle:2.4rad; --spec-bright:0; }
+  [data-spec]::after{
+    content:''; position:absolute; inset:-1px; z-index:5;
+    padding:1px; border-radius:inherit; pointer-events:none;
+    opacity:var(--spec-bright);
+    background:conic-gradient(from var(--spec-angle) at 50% 50%,
+      rgba(240,246,232,0) 0deg, rgba(240,246,232,.08) 14deg, rgba(240,246,232,.95) 28deg,
+      rgba(240,246,232,.16) 46deg, rgba(240,246,232,0) 68deg, rgba(240,246,232,0) 180deg,
+      rgba(240,246,232,.08) 194deg, rgba(240,246,232,.95) 208deg, rgba(240,246,232,.16) 226deg,
+      rgba(240,246,232,0) 248deg, rgba(240,246,232,0) 360deg);
+    -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite:xor; mask-composite:exclude; }
+</style>
+</head><body>
+<canvas id="gl"></canvas>
+<canvas id="hud"></canvas>
+<div id="brand">d<b style="color:#ffc46e">w</b>ago<small>the brain · alive</small></div>
+<div id="hint">drag — turn · scroll — closer<br>click a lobe — open it and watch it think · click a neuron — its file</div>
+<div id="tip"></div>
+<div id="card"></div>
+<div id="mini" title="click a lobe"></div>
+<div id="minilab">regions</div>
+<div id="files" data-spec>
+  <input id="fsearch" type="text" placeholder="find a file…" spellcheck="false">
+  <div id="flist"></div>
+</div>
+<div id="panel" data-spec>
+  <b style="--d:60ms">VIEW</b>
+  <button id="v0" class="on" data-spec style="--d:120ms">FULL</button>
+  <button id="v1" data-spec style="--d:180ms">NEURONS</button>
+  <button id="v2" data-spec style="--d:240ms">X-RAY</button>
+  <b style="--d:300ms">OVERLAY</b>
+  <button id="bImp" data-spec style="--d:360ms">KEY FILES</button>
+  <button id="bRot" class="on" data-spec style="--d:420ms">ROTATE</button>
+</div>
+
+<script>
+'use strict';
+/* ═══════════════════════════════════════════════════════════════════════
+   THE BRAIN — sculpted. A true displaced-surface model: ~190k triangles,
+   grid-derived normals so every gyrus ridge catches key light and specular
+   sheen, fresnel rim, a semi-translucent shell over an electric interior,
+   a low-poly scan-web on the skin, gold spark dust, flowing fiber tracts,
+   and a real post-process bloom. Files are its neurons. It thinks.
+   ═══════════════════════════════════════════════════════════════════════ */
+const cv = document.getElementById('gl');
+const hud = document.getElementById('hud');
+const hctx = hud.getContext('2d');
+const gl = cv.getContext('webgl2', { antialias:false, alpha:false,
+                                     preserveDrawingBuffer:true });
+if (!gl) { document.body.innerHTML='<p style="color:#89a;padding:40px;font:14px sans-serif">WebGL2 required.</p>'; throw 0; }
+
+/* ── noise ──────────────────────────────────────────────────────────────── */
+function rng(seed){let a=seed;return()=>{a|=0;a=a+0x6D2B79F5|0;
+  let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;
+  return((t^t>>>14)>>>0)/4294967296;};}
+const R = rng(1337);
+const PERM = new Uint8Array(512);
+{ const p=[...Array(256).keys()]; const rr=rng(77);
+  for(let i=255;i>0;i--){const j=(rr()*(i+1))|0;[p[i],p[j]]=[p[j],p[i]];}
+  for(let i=0;i<512;i++)PERM[i]=p[i&255]; }
+function vhash(x,y,z){ return PERM[(PERM[(PERM[x&255]+y)&255]+z)&255]/255; }
+function vnoise(x,y,z){
+  const xi=Math.floor(x),yi=Math.floor(y),zi=Math.floor(z);
+  const xf=x-xi,yf=y-yi,zf=z-zi;
+  const q=t=>t*t*(3-2*t);
+  const u=q(xf),v=q(yf),w=q(zf);
+  const l=(a,b,t)=>a+(b-a)*t;
+  return l(
+    l(l(vhash(xi,yi,zi),vhash(xi+1,yi,zi),u), l(vhash(xi,yi+1,zi),vhash(xi+1,yi+1,zi),u), v),
+    l(l(vhash(xi,yi,zi+1),vhash(xi+1,yi,zi+1),u), l(vhash(xi,yi+1,zi+1),vhash(xi+1,yi+1,zi+1),u), v),
+    w);
+}
+function fbm(x,y,z){ let v=0,a=.5;
+  for(let o=0;o<4;o++){ v+=a*vnoise(x,y,z); x=x*2.03+7.1;y=y*2.03+3.7;z=z*2.03+9.3; a*=.5; }
+  return v; }
+function ridged(x,y,z){ let v=0,a=.55;
+  for(let o=0;o<4;o++){ v+=a*(1-Math.abs(2*vnoise(x,y,z)-1)); x=x*2.07+3.1;y=y*2.07+8.9;z=z*2.07+5.3; a*=.5; }
+  return v; }
+
+/* ── anatomy ────────────────────────────────────────────────────────────── */
+function sstep(a,b,x){ const t=Math.max(0,Math.min(1,(x-a)/(b-a))); return t*t*(3-2*t); }
+const TILT=-.06, TC=Math.cos(TILT), TS=Math.sin(TILT);
+function tilt(x,y,z){ return [x, TC*y-TS*z, TS*y+TC*z]; }
+/* x = left-right · y = up-down · z = front(+)/back(-) */
+function gyralPhase(dx,dy,dz){
+  /* real gyri flow: concentric arcs around the sylvian core, wrapping the
+     frontal & occipital poles, running parasagittal over the crown */
+  const sx=dx<0?-1:1;
+  const vS=Math.hypot(dx-.80*sx, dy+.12, dz-.18);      /* sylvian notch    */
+  /* lateral gyri run as antero-posterior strata arcing over the dome,
+     locally bent around the sylvian notch; hemispheres offset so they
+     never mirror-match */
+  const el=Math.atan2(dy, Math.hypot(dx,dz));          /* latitude         */
+  const bend=3.2*Math.exp(-Math.pow(vS-.30,2)*5.5);
+  const hemi=(dx<0?0:1.9);
+  /* anisotropic labyrinth: organic branching worms with a horizontal grain */
+  const base=fbm(dx*2.6, dy*4.4, dz*1.8);
+  return base*46. + el*9. + bend + hemi;
+}
+function cortexRadius(dx,dy,dz){
+  let rx=.84, ry=.70, rz=1.00;
+  const ax=Math.abs(dx);
+  if (dy<0) ry*=.74+.22*sstep(.22,.85,ax)+.10*Math.max(0,-dz);
+  const front = Math.max(0,dz);
+  rx *= 1-.14*front*front;
+  ry *= 1-.08*front*front;
+  const temporal = Math.exp(-Math.pow(ax-.62,2)*4.5)
+                 * Math.exp(-Math.pow(dy+.46,2)*4.2)
+                 * Math.exp(-Math.pow(dz-.20,2)*1.6);
+  const sylvian = Math.exp(-Math.pow(ax-.88,2)*7)
+                * Math.exp(-Math.pow(dy+.10,2)*9)
+                * Math.exp(-Math.pow(dz-.22,2)*2.4);
+  const dome = Math.exp(-Math.pow(dy-1.,2)*2.6);
+  const bulge = 1 + temporal*.28 - sylvian*.06 + dome*.05;
+  let r = 1/Math.sqrt((dx*dx)/(rx*rx)+(dy*dy)/(ry*ry)+(dz*dz)/(rz*rz));
+  r *= bulge;
+  const fis = Math.exp(-(dx*dx)/.0035) * sstep(.1,.55,dy);
+  r *= 1-.13*Math.min(1,fis);
+  /* gyri follow anatomy: flow-field arcs, fat crests, deep narrow sulci */
+  const gp=gyralPhase(dx,dy,dz);
+  const meander=(fbm(dx*6.5+7.7, dy*6.5+1.3, dz*6.5+4.9)-.5)*3.4;
+  const band=Math.sin(gp + meander);
+  const f=sstep(-.75,-.06,band);
+  const micro=ridged(dx*9,dy*9,dz*9);
+  r *= 1 + .072*(f-.5) + .008*(micro-.55) + .026*(fbm(dx*1.15+3.3,dy*1.15,dz*1.15)-.5);
+  return { r, fold: f, fis: Math.min(1,fis) };
+}
+function regionOf(dx,dy,dz){
+  const L = dx<0;
+  if (dz > .30) return L?0:1;
+  if (dz < -.45 && dy > -.1) return 6;
+  if (dy < -.12 && Math.abs(dx) > .32) return L?4:5;
+  return L?2:3;
+}
+/*__DWAGO_DATA__*/
+const DATA=window.DWAGO_DATA||null;
+const ZONE=['frontal · L','frontal · R','parietal · L','parietal · R',
+            'temporal · L','temporal · R','occipital','cerebellum'];
+const REGION_NAME=DATA?DATA.regions.map((r,i)=>r.name):ZONE.slice();
+const DIRS=DATA?DATA.regions.map(r=>r.name):['src/auth','src/api','core/engine','core/store',
+            'ui/components','services/billing','infra/queue','lib/utils'];
+
+/* ── spectrum: violet occiput → indigo crown → molten amber-gold front ──── */
+const STOPS=[
+  [ .46,.22,1.00],
+  [ .22,.44,1.00],
+  [ .15,.37,.68],
+  [1.00,.52,.16],
+  [1.00,.82,.30],
+];
+function spectra(x,y,z){
+  const t=Math.max(0,Math.min(1,(z+1)/2));
+  const seg=t<.44?[0,1,t/.44] : t<.62?[1,2,(t-.44)/.18]
+          : t<.84?[2,3,(t-.62)/.22] : [3,4,(t-.84)/.16];
+  const A=STOPS[seg[0]],B=STOPS[seg[1]],u=seg[2];
+  let c=[A[0]+(B[0]-A[0])*u, A[1]+(B[1]-A[1])*u, A[2]+(B[2]-A[2])*u];
+  const fur=Math.exp(-Math.pow(z-.45,2)*2.2 - Math.pow(y+.42,2)*3.5);
+  c=[c[0]+(1.05-c[0])*fur*.92, c[1]+(.50-c[1])*fur*.92, c[2]+(.13-c[2])*fur*.92];
+  const crown=sstep(.30,.75,y);
+  c=[c[0]+(.30-c[0])*crown*.38, c[1]+(.52-c[1])*crown*.38, c[2]+(1.0-c[2])*crown*.38];
+  return c;
+}
+
+/* ── mesh builder: lat-long grid, poles on ±x, grid-difference normals ──── */
+/* dir(θ,φ): poles on ±y — x=sinθ·cosφ · y=cosθ · z=sinθ·sinφ */
+function buildSurface(NT,NP, radiusFn, centre, foldOf){
+  const VW=NP+1;
+  const nv=(NT+1)*VW;
+  const pos=new Float32Array(nv*3), nrm=new Float32Array(nv*3);
+  const col=new Float32Array(nv*3), aux=new Float32Array(nv*4);
+  const P=(it,ip)=>((it*VW)+ip)*3;
+  for(let it=0;it<=NT;it++){
+    const th=it/NT*Math.PI;
+    const ct=Math.cos(th), st=Math.sin(th);
+    for(let ip=0;ip<=VW-1;ip++){
+      const ph=ip/NP*2*Math.PI;
+      const dx=st*Math.cos(ph), dy=ct, dz=st*Math.sin(ph);
+      const {r,fold,fis}=radiusFn(dx,dy,dz);
+      const px=centre[0]+dx*r, py=centre[1]+dy*r, pz=centre[2]+dz*r;
+      const tp=tilt(px,py,pz);
+      const o=P(it,ip);
+      pos[o]=tp[0];pos[o+1]=tp[1];pos[o+2]=tp[2];
+      const c=spectra(px,py,pz);
+      col[o]=c[0];col[o+1]=c[1];col[o+2]=c[2];
+      const o4=((it*VW)+ip)*4;
+      aux[o4]=fold; aux[o4+1]=regionOf(dx,dy,dz);
+      aux[o4+2]=R()<.02?1:0; aux[o4+3]=fis;
+    }
+  }
+  /* normals from grid neighbours */
+  for(let it=0;it<=NT;it++){
+    for(let ip=0;ip<=NP;ip++){
+      const o=P(it,ip);
+      const itA=Math.max(0,it-1), itB=Math.min(NT,it+1);
+      const ipA=(ip-1+NP)%NP, ipB=(ip+1)%NP;
+      const a=P(itA,ip), b=P(itB,ip), c2=P(it,ipA), d2=P(it,ipB);
+      const t1=[pos[b]-pos[a],pos[b+1]-pos[a+1],pos[b+2]-pos[a+2]];
+      const t2=[pos[d2]-pos[c2],pos[d2+1]-pos[c2+1],pos[d2+2]-pos[c2+2]];
+      let nx=t1[1]*t2[2]-t1[2]*t2[1],
+          ny=t1[2]*t2[0]-t1[0]*t2[2],
+          nz=t1[0]*t2[1]-t1[1]*t2[0];
+      const L=Math.hypot(nx,ny,nz)||1;
+      nx/=L;ny/=L;nz/=L;
+      /* orient outward */
+      const cx=pos[o]-centre[0], cy=pos[o+1]-centre[1], cz=pos[o+2]-centre[2];
+      if(nx*cx+ny*cy+nz*cz<0){nx=-nx;ny=-ny;nz=-nz;}
+      nrm[o]=nx;nrm[o+1]=ny;nrm[o+2]=nz;
+    }
+  }
+  const idx=new Uint32Array(NT*NP*6);
+  let k=0;
+  for(let it=0;it<NT;it++)for(let ip=0;ip<NP;ip++){
+    const a=it*VW+ip, b=a+1, c3=a+VW, d3=c3+1;
+    idx[k++]=a;idx[k++]=c3;idx[k++]=b;
+    idx[k++]=b;idx[k++]=c3;idx[k++]=d3;
+  }
+  return {pos,nrm,col,aux,idx,count:idx.length};
+}
+const cortexMesh=buildSurface(340,440,cortexRadius,[0,0,0]);
+function cerebRadius(dx,dy,dz){
+  let r=1/Math.sqrt((dx*dx)/(.36*.36)+(dy*dy)/(.22*.22)+(dz*dz)/(.28*.28));
+  const stria=.5+.5*Math.sin(Math.asin(Math.max(-1,Math.min(1,dy)))*34+dy*46);
+  const folia=.5+.5*Math.sin(dy*60+fbm(dx*3,dy*3,dz*3)*4);
+  r*=1+.034*(folia-.5);
+  return { r, fold:.25+.75*folia, fis:0 };
+}
+const cerebMesh=buildSurface(120,150,cerebRadius,[0,-.40,-.64]);
+function stemRadius(dx,dy,dz){
+  let r=1/Math.sqrt((dx*dx)/(.10*.10)+(dy*dy)/(.30*.30)+(dz*dz)/(.075*.075));
+  r*=1+.05*(fbm(dx*4,dy*4,dz*4)-.5);
+  return { r, fold:.5, fis:0 };
+}
+const stemMesh=buildSurface(60,40,stemRadius,[0,-.62,-.28]);
+
+/* ── low-poly scan web on the skin ──────────────────────────────────────── */
+/* organic node-and-wire lattice: knn web over the surface */
+const webVerts=[], webCols=[], webRegs=[];
+const NLAT=2600;
+const latP=new Float32Array(NLAT*3), latC=new Float32Array(NLAT*3),
+      latS=new Float32Array(NLAT), latR=new Float32Array(NLAT);
+{
+  const nodes=[];
+  let i=0;
+  while(i<NLAT){
+    let dx=R()*2-1, dy=R()*2-1, dz=R()*2-1;
+    const L=Math.hypot(dx,dy,dz); if(L<1e-4||L>1)continue;
+    dx/=L;dy/=L;dz/=L;
+    const {r,fold}=cortexRadius(dx,dy,dz);
+    const D=dissolveOf(dz*r);
+    if(R()>.28+.72*D) continue;
+    const tp=tilt(dx*r*1.010, dy*r*1.010, dz*r*1.010);
+    const c=spectra(dx*r,dy*r,dz*r);
+    const lum=(.35+.65*D)*(.6+.6*fold);
+    const reg=regionOf(dx,dy,dz);
+    nodes.push({p:tp,c,reg,D,lum});
+    latP[i*3]=tp[0];latP[i*3+1]=tp[1];latP[i*3+2]=tp[2];
+    latC[i*3]=c[0]*lum*2.1;latC[i*3+1]=c[1]*lum*2.1;latC[i*3+2]=c[2]*lum*2.1;
+    latS[i]=1.5+1.9*R()+D*1.2;
+    latR[i]=reg;
+    i++;
+  }
+  for(let a=0;a<NLAT;a++){
+    const dists=[];
+    const A=nodes[a];
+    for(let b2=0;b2<NLAT;b2++){ if(b2===a)continue;
+      const dx=A.p[0]-nodes[b2].p[0], dy=A.p[1]-nodes[b2].p[1], dz=A.p[2]-nodes[b2].p[2];
+      const d2=dx*dx+dy*dy+dz*dz;
+      if(d2<.06) dists.push([d2,b2]); }
+    dists.sort((x,y)=>x[0]-y[0]);
+    for(let k=0;k<3&&k<dists.length;k++){ const b2=dists[k][1]; if(b2<a)continue;
+      const B=nodes[b2];
+      const m=(.24+.62*Math.min(A.D,B.D))*(.5+.5*Math.min(A.lum,B.lum));
+      webVerts.push(...A.p,...B.p);
+      webCols.push(A.c[0]*m,A.c[1]*m,A.c[2]*m, B.c[0]*m,B.c[1]*m,B.c[2]*m);
+      webRegs.push(A.reg,B.reg); }
+  }
+}
+const webVertCount=webVerts.length/3;
+
+/* ── gold spark dust riding the skin ────────────────────────────────────── */
+function dissolveOf(z){ return sstep(.14,.94,z); }   /* 0 solid occiput → 1 gone at frontal tip */
+const NSPARK=95000, NMIST=3200, NSPRAY=16000;
+const NSPK=NSPARK+NMIST+NSPRAY;
+const sparkP=new Float32Array(NSPK*3), sparkC=new Float32Array(NSPK*3),
+      sparkS=new Float32Array(NSPK), sparkR=new Float32Array(NSPK);
+{ let i=0;
+  while(i<NSPARK){
+    let dx=R()*2-1, dy=R()*2-1, dz=R()*2-1;
+    const L=Math.hypot(dx,dy,dz); if(L<1e-4||L>1)continue;
+    dx/=L;dy/=L;dz/=L;
+    const {r,fold}=cortexRadius(dx,dy,dz);
+    const D=dissolveOf(dz*r);
+    if(R()>.85+.15*D) continue;
+    const off=1.004+R()*.02+D*R()*.05;
+    const tp=tilt(dx*r*off,dy*r*off,dz*r*off);
+    sparkP[i*3]=tp[0];sparkP[i*3+1]=tp[1];sparkP[i*3+2]=tp[2];
+    const c=spectra(dx*r,dy*r,dz*r);
+    const gold=Math.min(1,D*1.3);
+    const ice=.45+.55*R();
+    const lum=.55+.75*fold;                         /* crests carry the light */
+    sparkC[i*3]=((c[0]*.85+.15*ice)*(1-gold)+1.0*gold)*lum;
+    sparkC[i*3+1]=((c[1]*.85+.16*ice)*(1-gold)+.72*gold)*lum;
+    sparkC[i*3+2]=((c[2]*.85+.24*ice)*(1-gold)+.24*gold)*lum;
+    sparkS[i]=(.9+R()*1.6+D*.8)*(0.75+.65*fold);
+    sparkR[i]=regionOf(dx,dy,dz);
+    i++;
+  }
+  for(let k=0;k<NSPRAY;k++){
+    const j=NSPARK+k;
+    let dx=(R()*2-1)*.9, dy=(R()*2-1)*.8-.05, dz=.35+R()*.65;
+    const L=Math.hypot(dx,dy,dz); dx/=L;dy/=L;dz/=L;
+    const {r}=cortexRadius(dx,dy,dz);
+    const D=dissolveOf(dz*r);
+    if(D<.25){k--;continue;}
+    const push=R()*R()*1.35;
+    const tp=tilt(dx*r+push*.22*(R()*2-1), dy*r-push*(.06+R()*.20), dz*r+push);
+    sparkP[j*3]=tp[0];sparkP[j*3+1]=tp[1];sparkP[j*3+2]=tp[2];
+    const w=Math.max(0,1-push/1.45)*(.38+.42*R());
+    sparkC[j*3]=1.0*w; sparkC[j*3+1]=.74*w; sparkC[j*3+2]=.26*w;
+    sparkS[j]=.9+3.2*(1-push)*R();
+    sparkR[j]=regionOf(dx,dy,dz);
+  }
+  for(let m=0;m<NMIST;m++){
+    const j=NSPARK+NSPRAY+m;
+    let dx=(R()*2-1)*.8, dy=(R()*2-1)*.6+.05, dz=-1;
+    const L=Math.hypot(dx,dy,dz); dx/=L;dy/=L;dz/=L;
+    const {r}=cortexRadius(dx,dy,dz);
+    const reach=R()*R()*1.5;
+    const tp=tilt(dx*r+(R()*2-1)*.15-reach*.35, dy*r+(R()*2-1)*.2+reach*.12, dz*r-reach);
+    sparkP[j*3]=tp[0];sparkP[j*3+1]=tp[1];sparkP[j*3+2]=tp[2];
+    const w=(1-reach/1.7)*1.5;
+    sparkC[j*3]=.50*w; sparkC[j*3+1]=.26*w; sparkC[j*3+2]=.95*w;
+    sparkS[j]=1.2+R()*2.6;
+    sparkR[j]=6;
+  }
+}
+
+/* ── fiber tracts + inner glow cores ────────────────────────────────────── */
+const fibPts=[], fibCol=[], fibMisc=[];
+const ribPts=[], ribCol=[];
+let lpx=0,lpy=0,lpz=0,lcr=0,lcg=0,lcb=0;
+function addFiber(sx,sy,sz, dx,dy,dz, len, segs, colFn, size, wobble, fade){
+  let p=[sx,sy,sz], d=[dx,dy,dz];
+  const ph=R()*6.283;
+  for(let i=0;i<segs;i++){
+    const u=i/(segs-1);
+    d[0]+=(vnoise(p[0]*2.2+9,p[1]*2.2,p[2]*2.2)-.5)*wobble;
+    d[1]+=(vnoise(p[0]*2.2,p[1]*2.2+7,p[2]*2.2)-.5)*wobble*.8-.010*u;
+    d[2]+=(vnoise(p[0]*2.2,p[1]*2.2,p[2]*2.2+3)-.5)*wobble*.35;
+    const L=Math.hypot(d[0],d[1],d[2]); d=[d[0]/L,d[1]/L,d[2]/L];
+    p=[p[0]+d[0]*len/segs, p[1]+d[1]*len/segs, p[2]+d[2]*len/segs];
+    const c=colFn(u);
+    const w=Math.min(1,u/.10)*(1-Math.pow(u,1.6))*fade;
+    fibPts.push(p[0],p[1],p[2]);
+    fibCol.push(c[0]*w,c[1]*w,c[2]*w);
+    fibMisc.push(u, ph, size, 1);
+    if(i>0){ ribPts.push(lpx,lpy,lpz,p[0],p[1],p[2]);
+      ribCol.push(lcr,lcg,lcb, c[0]*w,c[1]*w,c[2]*w); }
+    lpx=p[0];lpy=p[1];lpz=p[2]; lcr=c[0]*w;lcg=c[1]*w;lcb=c[2]*w;
+  }
+}
+for(let f=0;f<190;f++){
+  let dx=(R()*2-1)*.85, dy=(R()*2-1)*.75-.08, dz=.45+R()*.55;
+  const L=Math.hypot(dx,dy,dz); dx/=L;dy/=L;dz/=L;
+  const {r}=cortexRadius(dx,dy,dz);
+  if(dissolveOf(dz*r)<.30){f--;continue;}
+  const s=tilt(dx*r*1.0, dy*r*1.0, dz*r*1.0);
+  addFiber(s[0],s[1],s[2], dx*.18, dy*.14-.05, 1.0, 1.6+R()*2.4, 96,
+    u=>{ const a=[1,.55,.16], b=[1,.85,.30], c=[1,.90,.44];
+         return u<.5 ? a.map((v,i)=>v+(b[i]-v)*(u*2)) : b.map((v,i)=>v+(c[i]-v)*((u-.5)*2)); },
+    3.0+R()*4.4, .13, .55+R()*.75);
+}
+for(let f=0;f<30;f++){
+  let dx=(R()*2-1)*.6, dy=(R()*2-1)*.5+.05, dz=-1;
+  const L=Math.hypot(dx,dy,dz); dx/=L;dy/=L;dz/=L;
+  const {r}=cortexRadius(dx,dy,dz);
+  const s=tilt(dx*r*.97, dy*r*.97, dz*r*.97);
+  addFiber(s[0],s[1],s[2], dx*.25, dy*.18+.03, -.97, .9+R()*.7, 46,
+    u=>{ const a=[.52,.26,.98], b=[.26,.10,.60];
+         return a.map((v,i)=>v+(b[i]-v)*u); },
+    5.2+R()*2.6, .20, .55+R()*.2);
+}
+function glowB(x,y,z, r,g,b, size, a){
+  const p=tilt(x,y,z);
+  fibPts.push(p[0],p[1],p[2]); fibCol.push(r*a,g*a,b*a); fibMisc.push(0,0,size,0);
+}
+glowB( .00,-.36, .62, 1.0,.45,.12, 480, .20);
+glowB( .00,-.30, .48, 1.0,.55,.16, 340, .17);
+glowB( .05,-.42, .55, 1.0,.38,.08, 230, .19);
+glowB( .00, .12,-.80, .50,.26,1.0, 420, .14);
+glowB( .00, .58, .05, .28,.50,1.0, 360, .10);
+const fibCount=fibMisc.length/4;
+
+/* ── interior glow network: light lives inside the gel ──────────────────── */
+const NIN=22000;
+const innerP=new Float32Array(NIN*3), innerC=new Float32Array(NIN*3), innerS=new Float32Array(NIN), innerR=new Float32Array(NIN);
+{ let i=0;
+  while(i<NIN){
+    let dx=R()*2-1, dy=R()*2-1, dz=R()*2-1;
+    const L=Math.hypot(dx,dy,dz); if(L<1e-4||L>1)continue;
+    dx/=L;dy/=L;dz/=L;
+    const {r}=cortexRadius(dx,dy,dz);
+    const depth=.25+.70*Math.cbrt(R());
+    const px=dx*r*depth, py=dy*r*depth, pz=dz*r*depth;
+    const tp=tilt(px,py,pz);
+    innerP[i*3]=tp[0];innerP[i*3+1]=tp[1];innerP[i*3+2]=tp[2];
+    const c=spectra(px,py,pz);
+    const w=.4+.6*R();
+    innerC[i*3]=c[0]*w*1.75; innerC[i*3+1]=c[1]*w*1.75; innerC[i*3+2]=c[2]*w*1.75;
+    innerS[i]=.8+R()*1.8;
+    innerR[i]=regionOf(dx,dy,dz);
+    i++;
+  }
+}
+/* wire the interior: a luminous 3D plexus through the volume */
+const plexV=[], plexC=[], plexR=[];
+{
+  const CELL=.13, grid=new Map();
+  const key=(x,y,z)=>((x+16)|0)+','+((y+16)|0)+','+((z+16)|0);
+  for(let i=0;i<NIN;i++){
+    const k=key(innerP[i*3]/CELL,innerP[i*3+1]/CELL,innerP[i*3+2]/CELL);
+    if(!grid.has(k))grid.set(k,[]);
+    grid.get(k).push(i);
+  }
+  for(let i=0;i<NIN;i++){
+    if(R()<.55)continue;                       /* sparser wiring than dots */
+    const cx=innerP[i*3]/CELL, cy2=innerP[i*3+1]/CELL, cz2=innerP[i*3+2]/CELL;
+    let best=-1,bd=.020;
+    for(let ox=-1;ox<=1;ox++)for(let oy=-1;oy<=1;oy++)for(let oz=-1;oz<=1;oz++){
+      const cell=grid.get(key(cx+ox,cy2+oy,cz2+oz));
+      if(!cell)continue;
+      for(const j of cell){ if(j<=i)continue;
+        const dx=innerP[i*3]-innerP[j*3], dy=innerP[i*3+1]-innerP[j*3+1], dz=innerP[i*3+2]-innerP[j*3+2];
+        const d2=dx*dx+dy*dy+dz*dz;
+        if(d2<bd){bd=d2;best=j;} }
+    }
+    if(best>=0){
+      plexV.push(innerP[i*3],innerP[i*3+1],innerP[i*3+2],
+                 innerP[best*3],innerP[best*3+1],innerP[best*3+2]);
+      const w=.55+.45*R();
+      plexC.push(innerC[i*3]*w,innerC[i*3+1]*w,innerC[i*3+2]*w,
+                 innerC[best*3]*w,innerC[best*3+1]*w,innerC[best*3+2]*w);
+      plexR.push(innerR[i],innerR[best]);
+    }
+  }
+}
+const plexCount=plexV.length/3;
+
+/* ── neurons: the files ─────────────────────────────────────────────────── */
+const NAMES=['session','token','login','refresh','guard','middleware','router','handler',
+             'client','schema','model','cache','worker','pool','parser','index','stream',
+             'codec','retry','limits','audit','sync'];
+const NN=DATA?DATA.files.length:260;
+const neurons=[], edges=[];
+const usedP=new Set();
+function hashSeed(str){ let h=2166136261;
+  for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,16777619); }
+  return (h>>>0)||1; }
+function interiorPointSeeded(region,rr){
+  for(let tries=0;tries<400;tries++){
+    let dx=rr()*2-1, dy=rr()*2-1, dz=rr()*2-1;
+    const len=Math.hypot(dx,dy,dz); if(len<1e-4||len>1)continue;
+    dx/=len;dy/=len;dz/=len;
+    if(region<7 && regionOf(dx,dy,dz)!==region) continue;
+    if(region===7){
+      const rad=Math.cbrt(rr())*.8;
+      return tilt(0+dx*.30*rad, -.40+dy*.17*rad, -.64+dz*.23*rad);
+    }
+    const {r}=cortexRadius(dx,dy,dz);
+    const depth=.58+rr()*.30;
+    return tilt(dx*r*depth, dy*r*depth, dz*r*depth);
+  }
+  return [0,0,0];
+}
+function interiorPoint(region){
+  for(let tries=0;tries<400;tries++){
+    let dx=R()*2-1, dy=R()*2-1, dz=R()*2-1;
+    const len=Math.hypot(dx,dy,dz); if(len<1e-4||len>1)continue;
+    dx/=len;dy/=len;dz/=len;
+    if(region<7 && regionOf(dx,dy,dz)!==region) continue;
+    if(region===7){
+      const rr=Math.cbrt(R())*.8;
+      return tilt(0+dx*.30*rr, -.40+dy*.17*rr, -.64+dz*.23*rr);
+    }
+    const {r}=cortexRadius(dx,dy,dz);
+    const depth=.58+R()*.30;
+    return tilt(dx*r*depth, dy*r*depth, dz*r*depth);
+  }
+  return [0,0,0];
+}
+if(DATA){
+  for(let i=0;i<NN;i++){
+    const f=DATA.files[i];
+    const rr=rng(hashSeed(f.p));                      /* stable layout per path */
+    const c=f.r;
+    const pt=interiorPointSeeded(c,rr);
+    neurons.push({x:pt[0],y:pt[1],z:pt[2],c,deg:0,ph:rr()*6.283,
+                  path:f.p,name:f.p.split('/').pop(),flash:0,hot:f.h||0});
+  }
+  for(const [a,b] of DATA.edges){
+    if(a===b||a>=NN||b>=NN)continue;
+    edges.push([a,b]);
+    neurons[a].deg++;neurons[b].deg++;
+  }
+}else{
+  for(let i=0;i<NN;i++){
+    const c=i%8;
+    let nm=NAMES[(R()*NAMES.length)|0], path=DIRS[c]+'/'+nm+'.ts', k=2;
+    while(usedP.has(path)) path=DIRS[c]+'/'+nm+'_'+(k++)+'.ts';
+    usedP.add(path);
+    const [x,y,z]=interiorPoint(c);
+    neurons.push({x,y,z,c,deg:0,ph:R()*6.283,path,name:path.split('/').pop(),flash:0});
+  }
+  for(let i=0;i<NN;i++){
+    const links=1+(R()*2.2|0);
+    for(let l=0;l<links;l++){
+      const same=R()<.8;
+      let j=(R()*NN)|0;
+      if(same){for(let t=0;t<8&&neurons[j].c!==neurons[i].c;t++)j=(R()*NN)|0;}
+      if(j===i)continue;
+      edges.push([i,j]);
+      neurons[i].deg++;neurons[j].deg++;
+    }
+  }
+}
+const adj=neurons.map(()=>[]);
+edges.forEach(([a,b],k)=>{adj[a].push(k);adj[b].push(k);});
+const AXON_SEGS=6;
+const axonVerts=new Float32Array(edges.length*AXON_SEGS*2*3);
+const axonRegs=new Float32Array(edges.length*AXON_SEGS*2);
+{ let o=0,q=0;
+  for(const [a,b] of edges){
+    const A=neurons[a],B=neurons[b];
+    const mx=(A.x+B.x)/2*.72, my=(A.y+B.y)/2*.72, mz=(A.z+B.z)/2*.72;
+    let px=A.x,py=A.y,pz=A.z;
+    for(let s2=1;s2<=AXON_SEGS;s2++){
+      const t=s2/AXON_SEGS,u=1-t;
+      axonVerts[o++]=px;axonVerts[o++]=py;axonVerts[o++]=pz;
+      px=u*u*A.x+2*u*t*mx+t*t*B.x;
+      py=u*u*A.y+2*u*t*my+t*t*B.y;
+      pz=u*u*A.z+2*u*t*mz+t*t*B.z;
+      axonVerts[o++]=px;axonVerts[o++]=py;axonVerts[o++]=pz;
+      axonRegs[q++]=neurons[a].c; axonRegs[q++]=neurons[b].c;
+    }
+  }
+}
+function axonPoint(e,t){
+  const [a,b]=edges[e];
+  const A=neurons[a],B=neurons[b];
+  const mx=(A.x+B.x)/2*.72, my=(A.y+B.y)/2*.72, mz=(A.z+B.z)/2*.72;
+  const u=1-t;
+  return [u*u*A.x+2*u*t*mx+t*t*B.x, u*u*A.y+2*u*t*my+t*t*B.y, u*u*A.z+2*u*t*mz+t*t*B.z];
+}
+
+/* ── GL machinery ───────────────────────────────────────────────────────── */
+function sh(t,src){const h=gl.createShader(t);gl.shaderSource(h,src);gl.compileShader(h);
+  if(!gl.getShaderParameter(h,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(h)+src);
+  return h;}
+function prog(vs,fs){const p=gl.createProgram();
+  gl.attachShader(p,sh(gl.VERTEX_SHADER,vs));gl.attachShader(p,sh(gl.FRAGMENT_SHADER,fs));
+  gl.linkProgram(p);
+  if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(p));
+  return p;}
+const CAM=`
+uniform float uYaw,uPitch,uScale,uAspect,uBreath;
+vec3 rotC(vec3 p){
+  float cy=cos(uYaw),sy=sin(uYaw);
+  p=vec3(cy*p.x+sy*p.z,p.y,-sy*p.x+cy*p.z);
+  float cx=cos(uPitch),sx=sin(uPitch);
+  return vec3(p.x,cx*p.y-sx*p.z,sx*p.y+cx*p.z);
+}
+vec3 cam(vec3 p){ return rotC(p*uScale*uBreath); }
+vec4 proj(vec3 p,out float depth){
+  float zc=p.z+2.6;
+  float f=2.1/max(zc,.2);
+  depth=clamp((zc-1.4)/2.4,0.,1.);
+  return vec4(p.x*f/uAspect,p.y*f,p.z*.22,1.);
+}`;
+const BG_VS=`#version 300 es
+precision highp float;
+layout(location=0) in vec2 aP;
+out vec2 vUV;
+void main(){ vUV=aP; gl_Position=vec4(aP*2.-1.,0.,1.); }`;
+const BG_FS=`#version 300 es
+precision highp float;
+in vec2 vUV; out vec4 frag;
+uniform float uT,uAspect;
+float h21(vec2 p){ p=fract(p*vec2(123.34,456.21)); p+=dot(p,p+45.32); return fract(p.x*p.y); }
+void main(){
+  vec2 uv=vUV;
+  vec3 top=vec3(.085,.115,.185), mid=vec3(.035,.05,.10), bot=vec3(.015,.02,.045);
+  vec3 c = uv.y>.5 ? mix(mid,top,(uv.y-.5)*2.) : mix(bot,mid,uv.y*2.);
+  for(int i=0;i<3;i++){
+    float sx=.26+.24*float(i);
+    float w=.045+.36*(1.-uv.y);
+    float d=abs(uv.x-sx)/w;
+    float shaft=exp(-d*d)*pow(uv.y,1.6);
+    c+=vec3(.55,.68,.95)*shaft*.075;
+    float halo=exp(-(pow((uv.x-sx)*2.6,2.)+pow((uv.y-1.04)*3.,2.))*9.);
+    c+=vec3(.75,.85,1.1)*halo*.16;
+  }
+  /* drifting volumetric haze */
+  float hz=0.; float amp=.55; vec2 hp=uv*vec2(2.6,2.0)+vec2(uT*.012,0.);
+  for(int o=0;o<3;o++){
+    vec2 ip=floor(hp), fp=fract(hp); fp=fp*fp*(3.-2.*fp);
+    float na=mix(mix(h21(ip),h21(ip+vec2(1,0)),fp.x),mix(h21(ip+vec2(0,1)),h21(ip+vec2(1,1)),fp.x),fp.y);
+    hz+=na*amp; hp=hp*2.1+vec2(9.7,3.1); amp*=.5;
+  }
+  c+=vec3(.30,.42,.72)*smoothstep(.42,1.,hz)*.19;
+  c+=vec3(.45,.30,.80)*smoothstep(.52,1.05,hz)*(1.-uv.y)*.11;
+  c+=vec3(.62,.36,.13)*exp(-(pow((uv.x-.60)*1.6,2.)+pow((uv.y-.24)*2.8,2.))*5.)*.10;
+  vec2 g=uv*vec2(90.*uAspect,90.)+vec2(0.,uT*.5);
+  vec2 id=floor(g), f2=fract(g);
+  float h=h21(id);
+  if(h>.965){
+    vec2 sp=vec2(.2)+.6*vec2(h21(id+7.1),h21(id+3.7));
+    float d2=length(f2-sp);
+    c+=vec3(.7,.8,1.)*smoothstep(.10,.0,d2)*(.10+.10*sin(uT*(.5+h)+h*40.));
+  }
+  c+=vec3(.40,.22,.85)*exp(-(pow((uv.x-.40)*2.0,2.)+pow((uv.y-.52)*2.6,2.))*6.)*.26;
+  c+=vec3(1.,.55,.18)*exp(-(pow((uv.x-.63)*1.9,2.)+pow((uv.y-.46)*2.6,2.))*6.)*.38;
+  for(int bk=0;bk<7;bk++){
+    float fb=float(bk);
+    vec2 bp=vec2(fract(.13+fb*.61+uT*.006*(1.+.3*fb)), fract(.2+fb*.37+uT*.003));
+    float bd=length((uv-bp)*vec2(1.,1.4));
+    c+=vec3(.55,.65,.95)*smoothstep(.05+.02*fb*.3,.0,bd)*.028;
+  }
+  float v=length((uv-.5)*vec2(1.25,1.05));
+  c*=1.-.70*v*v;
+  frag=vec4(c,1.);
+}`;
+/* the sculpted shell */
+const MESH_VS=`#version 300 es
+precision highp float;
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec3 aNrm;
+layout(location=2) in vec3 aCol;
+layout(location=3) in vec4 aAux;  /* fold, region, spark, fissure */
+uniform float uT,uDpr;
+${CAM}
+out vec3 vN; out vec3 vCol; out vec4 vAux; out float vDepth; out vec3 vPos;
+void main(){
+  float d; vec3 c=cam(aPos);
+  gl_Position=proj(c,d);
+  vDepth=d; vN=rotC(aNrm); vCol=aCol; vAux=aAux; vPos=aPos;
+}`;
+const MESH_FS=`#version 300 es
+precision highp float;
+in vec3 vN; in vec3 vCol; in vec4 vAux; in float vDepth; in vec3 vPos;
+uniform float uT;
+uniform float uAct[8];
+uniform float uXray[8];
+uniform float uFade;
+uniform float uMini;
+uniform float uMiniHov;
+out vec4 frag;
+float mh(vec3 p){ p=fract(p*.3183+.1); p*=17.; return fract(p.x*p.y*p.z*(p.x+p.y+p.z)); }
+float mn(vec3 p){ vec3 i=floor(p),f=fract(p); f=f*f*(3.-2.*f);
+  return mix(mix(mix(mh(i),mh(i+vec3(1,0,0)),f.x),mix(mh(i+vec3(0,1,0)),mh(i+vec3(1,1,0)),f.x),f.y),
+             mix(mix(mh(i+vec3(0,0,1)),mh(i+vec3(1,0,1)),f.x),mix(mh(i+vec3(0,1,1)),mh(i+vec3(1,1,1)),f.x),f.y),f.z); }
+void main(){
+  vec3 N=normalize(vN);
+  vec3 Lk=normalize(vec3(-.35,.80,-.50));
+  vec3 Lf=normalize(vec3( .75,.10,-.30));
+  vec3 V=vec3(0.,0.,-1.);
+  float df=max(dot(N,Lk),0.);
+  float ff=max(dot(N,Lf),0.);
+  vec3 H=normalize(Lk+V);
+  float sp=pow(max(dot(N,H),0.),70.);
+  float fres=pow(1.-max(dot(N,V),0.),2.6);
+  float fold=vAux.x;
+  float ao=(.30+.70*smoothstep(0.,.85,fold))*(1.-.0*vAux.w);
+  float z0=.05996*vPos.y+.99820*vPos.z;
+  float D=smoothstep(.14,.94,z0);
+  /* dark slate flesh — the glow belongs to the particles */
+  vec3 base=mix(vec3(.042,.050,.092),vCol,.42);
+  vec3 col=base*(.05+.24*df+.07*ff)*ao;
+  float crest=smoothstep(.02,.90,fold);
+  float ptc=mn(vPos*3.2);
+  /* light lives in the crevices: the lattice glows from within */
+  float fil=.55+.45*mn(vPos*14.);
+  /* ridges carry the light; sulci stay as dark cuts */
+  col+=vCol*crest*(.14+.50*smoothstep(.42,.88,ptc))*fil;
+  col+=vCol*crest*(.18+.34*df)*(1.+.8*smoothstep(.1,.6,D));
+  float rake=pow(.5+.5*sin((vPos.x*.3+vPos.y*1.4+vPos.z*.2)*3.2+uT*.12),3.);
+  col+=vCol*rake*.14*crest*(1.-D*.5);
+  col+=vCol*.05;
+  /* relief gate: everything dims into the folds */
+  col*=.42+.58*smoothstep(.05,.95,fold);
+  col+=vec3(1.,.96,.9)*sp*.10*ao;
+  col+=vCol*fres*.72;
+  col+=vCol*smoothstep(0.,.55,D)*.48;
+  /* the dissolve: flesh disintegrates toward the frontal pole */
+  float grain=mn(vPos*26.)*.55+mn(vPos*90.)*.45;
+  float melt=D*1.35-.30-grain*.55+.05*sin(uT*.5+vPos.y*2.2)+.03*sin(uT*.23);
+  float keep=1.-smoothstep(-.10,.60,melt);
+  float edge=smoothstep(.28,.02,abs(melt));
+  col+=vec3(1.,.50,.13)*edge*.28*keep;
+  /* x-ray: an opened lobe turns to glass */
+  float xr=uXray[int(vAux.y+.5)];
+  col*=1.-.97*xr;
+  col+=(vCol*.18+vec3(.45,.75,1.)*.14)*fres*xr;
+  if(!gl_FrontFacing){ col*=mix(1.,.25,xr); }
+  /* thought blooms */
+  float a=clamp(uAct[int(vAux.y+.5)],0.,1.);
+  col+=vec3(1.,.92,.70)*a*(.40+.40*crest)*(1.-.6*xr);
+  if(uMini>.5){
+    int rg=int(vAux.y+.5);
+    vec3 mc=vCol*(.45+.55*smoothstep(.05,.95,fold));
+    mc*=(.55+.45*df)*.52;
+    float hov=(abs(float(rg)-uMiniHov)<.5)?1.:0.;
+    mc=mix(mc,vec3(.62,.60,.57),hov*.6);
+    mc+=vec3(.45,.75,1.)*fres*.22;
+    mc+=vec3(1.,.92,.70)*uXray[rg]*.25;
+    frag=vec4(mc,1.); return;
+  }
+  float fog=1.-vDepth*.45;
+  float alpha=mix(mix(.50,.22,D),.045,xr)*keep*uFade;
+  if(!gl_FrontFacing) alpha*=mix(1.,.30,xr);
+  col*=(.30+.70*uFade);
+  float luma=dot(col,vec3(.299,.587,.114));
+  col=mix(vec3(luma),col,.35+.65*uFade);
+  if(alpha<.02) discard;
+  frag=vec4(col*fog,alpha);
+}`;
+const LINE_VS=`#version 300 es
+precision highp float;
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec3 aCol;
+layout(location=2) in float aReg;
+uniform float uXray[8];
+uniform float uT;
+${CAM}
+out vec3 vCol; out float vDepth; out float vXr; out float vSw;
+void main(){
+  /* streams sway like kelp beyond the body; roots stay pinned */
+  float z0=.05996*aPos.y+.99820*aPos.z;
+  float amp=smoothstep(.95,2.3,abs(z0))*.055;
+  vec3 p=aPos;
+  p.x+=sin(uT*.9+z0*2.1+aPos.y*3.)*amp;
+  p.y+=cos(uT*.7+z0*1.7)*amp*.7;
+  float d; gl_Position=proj(cam(p),d); vDepth=d; vCol=aCol;
+  vXr=aReg<0.?0.:uXray[int(aReg+.5)];
+  /* light sweeps racing across the lattice */
+  vSw=.5+.5*sin(uT*2.4-(aPos.z+aPos.x*.4)*5.5);
+}`;
+const WEB_FS=`#version 300 es
+precision mediump float;
+in vec3 vCol; in float vDepth; in float vXr; in float vSw;
+uniform float uDim;
+out vec4 frag;
+void main(){ float fog=1.-vDepth*.75;
+  vec3 c=mix(vCol*1.3,vec3(.55,.85,1.)*1.5,vXr*.7)*(0.65+.85*vSw)*uDim;
+  frag=vec4(c*fog,(.34+.30*vXr)*fog*(0.7+.6*vSw)*uDim); }`;
+const AXON_FS=`#version 300 es
+precision mediump float;
+in vec3 vCol; in float vDepth; in float vXr; in float vSw;
+uniform float uMode;
+uniform float uBase;
+out vec4 frag;
+void main(){ float fog=1.-vDepth*.75;
+  vec3 c=mix(vec3(.45,.62,.95),vec3(.60,.92,1.),vXr);
+  float a=uMode<.5 ? uBase+.10*vXr : .62*vXr;
+  frag=vec4(c*(0.9+1.6*vXr)*fog,a*fog); }`;
+const RIB_FS=`#version 300 es
+precision mediump float;
+in vec3 vCol; in float vDepth; in float vXr; in float vSw;
+uniform float uGain;
+out vec4 frag;
+void main(){ float fog=1.-vDepth*.6; frag=vec4(vCol*1.6*fog*(0.8+.4*vSw)*uGain,.30*fog*uGain); }`;
+const FIB_VS=`#version 300 es
+precision highp float;
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec3 aCol;
+layout(location=2) in vec4 aMisc;
+uniform float uT,uDpr;
+${CAM}
+out vec3 vCol; out float vDepth; out float vW;
+void main(){
+  float z0=.05996*aPos.y+.99820*aPos.z;
+  float amp=smoothstep(.95,2.3,abs(z0))*.055;
+  vec3 pp=aPos;
+  pp.x+=sin(uT*.9+z0*2.1+aPos.y*3.)*amp;
+  pp.y+=cos(uT*.7+z0*1.7)*amp*.7;
+  float d; gl_Position=proj(cam(pp),d); vDepth=d;
+  vCol=aCol;
+  float fq=14.+18.*fract(aMisc.y*2.39);
+  float sp2=1.8+2.2*fract(aMisc.y*5.71);
+  float wave=.40+.60*sin(aMisc.x*fq-uT*sp2+aMisc.y);
+  float clump=.55+.45*sin(aMisc.x*3.1-uT*.7+aMisc.y*2.);
+  vW=mix(1.,wave*clump,aMisc.w);
+  gl_PointSize=min(aMisc.z*uDpr*(1.6-d)*(aMisc.w>.5?(.75+.5*vW):1.),500.);
+}`;
+const FIB_FS=`#version 300 es
+precision mediump float;
+in vec3 vCol; in float vDepth; in float vW;
+uniform float uGain;
+out vec4 frag;
+void main(){
+  vec2 q=gl_PointCoord-.5; float r2=dot(q,q)*4.; if(r2>1.) discard;
+  float g=exp(-r2*3.0);
+  float fog=1.-vDepth*.6;
+  frag=vec4(vCol*g*vW*1.7*fog*uGain,g*.38*vW*fog*uGain);
+}`;
+const DOT_VS=`#version 300 es
+precision highp float;
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec3 aCol;
+layout(location=2) in float aSize;
+uniform float uDpr,uT;
+${CAM}
+out vec3 vCol; out float vDepth;
+void main(){ float d; gl_Position=proj(cam(aPos),d); vDepth=d; vCol=aCol;
+  gl_PointSize=aSize*uDpr*(1.7-d); }`;
+/* interior cloud slowly circulates */
+const INNER_VS=`#version 300 es
+precision highp float;
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec3 aCol;
+layout(location=2) in float aSize;
+layout(location=3) in float aReg;
+uniform float uDpr,uT;
+uniform float uXray[8];
+${CAM}
+out vec3 vCol; out float vDepth; out float vTw;
+void main(){
+  float a=.03*sin(uT*.14+aPos.y*2.);
+  float ca=cos(a),sa=sin(a);
+  vec3 p=vec3(ca*aPos.x+sa*aPos.z,aPos.y+.012*sin(uT*.4+aPos.x*5.),-sa*aPos.x+ca*aPos.z);
+  float d; gl_Position=proj(cam(p),d); vDepth=d;
+  float xr=uXray[int(aReg+.5)];
+  vCol=aCol*(1.+1.4*xr);
+  vTw=.4+.6*pow(.5+.5*sin(uT*1.7+aPos.x*47.+aPos.z*61.),2.);
+  vTw*=1.;
+  gl_PointSize=aSize*uDpr*(1.6-d)*(.7+.6*vTw)*(1.+.5*xr); }`;
+const DOT_FS=`#version 300 es
+precision mediump float;
+in vec3 vCol; in float vDepth;
+uniform float uGhost;
+out vec4 frag;
+void main(){
+  vec2 q=gl_PointCoord-.5; float r2=dot(q,q)*4.; if(r2>1.) discard;
+  float g=exp(-r2*3.4), core=exp(-r2*18.);
+  float fog=1.-vDepth*.6;
+  frag=vec4((vCol*g+vec3(1.)*core*.7)*fog*uGhost,(g*.6+core)*fog*uGhost);
+}`;
+const SPARK_VS=`#version 300 es
+precision highp float;
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec3 aCol;
+layout(location=2) in float aSize;
+layout(location=3) in float aReg;
+uniform float uDpr,uT;
+uniform float uXray[8];
+uniform vec3 uMouse;
+${CAM}
+out vec3 vCol; out float vDepth; out float vTw;
+void main(){
+  /* the skin is a current: dust drifts toward the melt and accelerates */
+  float z0=.05996*aPos.y+.99820*aPos.z;
+  float D=smoothstep(.14,.94,z0);
+  float ph=fract(sin(dot(aPos,vec3(12.9898,78.233,37.719)))*43758.5453);
+  vec3 p=aPos;
+  float drift=(fract(uT*(.010+.055*D)+ph)-.5);
+  p.z+=drift*(.02+.16*D);
+  p.y+=drift*(.008*D)-.004*D;
+  float d; gl_Position=proj(cam(p),d); vDepth=d;
+  float xr=uXray[int(aReg+.5)];
+  /* cursor charge: the surface notices you */
+  float md=length(aPos-uMouse);
+  float chg=exp(-md*md*22.);
+  vCol=aCol*(1.-.85*xr)*(1.+1.6*chg);
+  vTw=.35+.65*pow(.5+.5*sin(uT*2.2+aPos.x*63.+aPos.y*87.+aPos.z*39.),2.);
+  gl_PointSize=aSize*uDpr*(1.6-d)*(.7+.6*vTw)*(1.+.9*chg); }`;
+const SPARK_FS=`#version 300 es
+precision mediump float;
+in vec3 vCol; in float vDepth; in float vTw;
+uniform float uGain;
+out vec4 frag;
+void main(){
+  vec2 q=gl_PointCoord-.5; float r2=dot(q,q)*4.; if(r2>1.) discard;
+  float g=exp(-r2*4.5);
+  float fog=1.-vDepth*.55;
+  frag=vec4(vCol*g*vTw*1.5*fog*uGain,g*vTw*.8*fog*uGain);
+}`;
+/* post: bright pass, blur, composite grade */
+const POST_VS=BG_VS;
+const BRIGHT_FS=`#version 300 es
+precision highp float;
+in vec2 vUV; out vec4 frag;
+uniform sampler2D uTex;
+void main(){
+  vec3 c=texture(uTex,vUV).rgb;
+  float l=dot(c,vec3(.299,.587,.114));
+  frag=vec4(c*smoothstep(.56,.98,l),1.);
+}`;
+const RAYS_FS=`#version 300 es
+precision highp float;
+in vec2 vUV; out vec4 frag;
+uniform sampler2D uTex;
+void main(){
+  vec2 light=vec2(.50,1.06);
+  vec2 st=(light-vUV)*.017;
+  vec2 p=vUV; vec3 acc=vec3(0.); float w=1.;
+  for(int i=0;i<14;i++){ p+=st; acc+=texture(uTex,p).rgb*w; w*=.90; }
+  frag=vec4(acc*.11,1.);
+}`;
+const BLUR_FS=`#version 300 es
+precision highp float;
+in vec2 vUV; out vec4 frag;
+uniform sampler2D uTex;
+uniform vec2 uDir;
+void main(){
+  vec3 s=vec3(0.);
+  float w[5]=float[](.227,.194,.121,.054,.016);
+  s+=texture(uTex,vUV).rgb*w[0];
+  for(int i=1;i<5;i++){
+    s+=texture(uTex,vUV+uDir*float(i)).rgb*w[i];
+    s+=texture(uTex,vUV-uDir*float(i)).rgb*w[i];
+  }
+  frag=vec4(s,1.);
+}`;
+const COMP_FS=`#version 300 es
+precision highp float;
+in vec2 vUV; out vec4 frag;
+uniform sampler2D uTex,uBloom,uBlur,uRays;
+void main(){
+  vec3 sharp=texture(uTex,vUV).rgb;
+  vec3 soft=texture(uBlur,vUV).rgb;
+  float dof=smoothstep(.20,.58,length((vUV-vec2(.52,.50))*vec2(1.0,1.35)));
+  vec3 c=mix(sharp,soft,dof*.85) + texture(uBloom,vUV).rgb*1.12;
+  c+=texture(uRays,vUV).rgb*vec3(.55,.70,1.05)*1.2;
+  c=(c*(2.51*c+.03))/(c*(2.43*c+.59)+.14);
+  c=mix(c,c*c*(3.-2.*c),.20);
+  c=pow(c,vec3(.96));
+  frag=vec4(c,1.);
+}`;
+const pBG=prog(BG_VS,BG_FS);
+const pMesh=prog(MESH_VS,MESH_FS);
+const pWeb=prog(LINE_VS,WEB_FS);
+const pRib=prog(LINE_VS,RIB_FS);
+const pAxon=prog(LINE_VS,AXON_FS);
+const pFib=prog(FIB_VS,FIB_FS);
+const pDot=prog(DOT_VS,DOT_FS);
+const pSpark=prog(SPARK_VS,SPARK_FS);
+const pInner=prog(INNER_VS,SPARK_FS);
+const pBright=prog(POST_VS,BRIGHT_FS);
+const pRays=prog(POST_VS,RAYS_FS);
+const BOLT_FS=`#version 300 es
+precision mediump float;
+in vec3 vCol; in float vDepth; in float vXr; in float vSw;
+out vec4 frag;
+void main(){ float fog=1.-vDepth*.5; frag=vec4(vCol*fog,.85); }`;
+const pBolt=prog(LINE_VS,BOLT_FS);
+const pBlur=prog(POST_VS,BLUR_FS);
+const pComp=prog(POST_VS,COMP_FS);
+
+function buf(data){const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);
+  gl.bufferData(gl.ARRAY_BUFFER,data,gl.STATIC_DRAW);return b;}
+function ibuf(data){const b=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,b);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,data,gl.STATIC_DRAW);return b;}
+const bQuad=buf(new Float32Array([0,0,1,0,0,1,1,1]));
+function meshBufs(m){ return {p:buf(m.pos),n:buf(m.nrm),c:buf(m.col),a:buf(m.aux),i:ibuf(m.idx),count:m.count}; }
+const mCortex=meshBufs(cortexMesh), mCereb=meshBufs(cerebMesh), mStem=meshBufs(stemMesh);
+const bWeb=buf(new Float32Array(webVerts)), bWebC=buf(new Float32Array(webCols)), bWebR=buf(new Float32Array(webRegs));
+const bRib=buf(new Float32Array(ribPts)), bRibC=buf(new Float32Array(ribCol));
+const bAxon=buf(axonVerts), bAxonR=buf(axonRegs);
+const bFib=buf(new Float32Array(fibPts)), bFibC=buf(new Float32Array(fibCol)), bFibM=buf(new Float32Array(fibMisc));
+const bSparkP=buf(sparkP), bSparkC=buf(sparkC), bSparkS=buf(sparkS), bSparkR=buf(sparkR);
+const bInP=buf(innerP), bInC=buf(innerC), bInS=buf(innerS), bInR=buf(innerR);
+const bLatP=buf(latP), bLatC=buf(latC), bLatS=buf(latS), bLatR=buf(latR);
+const bPlexV=buf(new Float32Array(plexV)), bPlexC=buf(new Float32Array(plexC)), bPlexR=buf(new Float32Array(plexR));
+const MAXDOT=NN+1400;
+const dotPos=new Float32Array(MAXDOT*3);
+const dotCol=new Float32Array(MAXDOT*3);
+const dotSize=new Float32Array(MAXDOT);
+const bDotP=gl.createBuffer(), bDotC=gl.createBuffer(), bDotS=gl.createBuffer();
+const nCol=neurons.map(n=>{ const c=spectra(n.x,n.y,n.z);
+  return [c[0]*.45+.55, c[1]*.45+.55, c[2]*.45+.55]; });
+
+/* FBOs */
+let fbScene=null,txScene=null,rbDepth=null,fbA=null,txA=null,fbB=null,txB=null,fbC=null,txC=null,fbD=null,txD=null,fbW=0,fbH=0;
+function mkTex(w,h){ const t=gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D,t);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,w,h,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  return t; }
+function ensureFBOs(){
+  if(fbW===cv.width&&fbH===cv.height)return;
+  fbW=cv.width;fbH=cv.height;
+  for(const t of [txScene,txA,txB,txC,txD]) if(t) gl.deleteTexture(t);
+  for(const f of [fbScene,fbA,fbB,fbC,fbD]) if(f) gl.deleteFramebuffer(f);
+  if(rbDepth) gl.deleteRenderbuffer(rbDepth);
+  txScene=mkTex(fbW,fbH);
+  rbDepth=gl.createRenderbuffer();
+  gl.bindRenderbuffer(gl.RENDERBUFFER,rbDepth);
+  gl.renderbufferStorage(gl.RENDERBUFFER,gl.DEPTH_COMPONENT16,fbW,fbH);
+  fbScene=gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER,fbScene);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,txScene,0);
+  gl.framebufferRenderbuffer(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.RENDERBUFFER,rbDepth);
+  const hw=fbW>>1, hh=fbH>>1;
+  txA=mkTex(hw,hh); fbA=gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER,fbA);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,txA,0);
+  txB=mkTex(hw,hh); fbB=gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER,fbB);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,txB,0);
+  txC=mkTex(hw,hh); fbC=gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER,fbC);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,txC,0);
+  txD=mkTex(hw,hh); fbD=gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER,fbD);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,txD,0);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+}
+
+/* ── camera + interaction ───────────────────────────────────────────────── */
+let yaw=1.58, pitch=.05, yawT=yaw, pitchT=pitch, scale=.55, scaleT=.55;
+let down=false, moved=false, lx=0, ly=0, downT=0;
+let selected=-1, hovered=-1;
+const act=new Float32Array(8);
+const xray=new Float32Array(8), xrayT=new Float32Array(8);
+function surfacePoint(mx,my){
+  const ndx=(mx/W*2-1)*(W/H), ndy=1-my/H*2;
+  const cy=Math.cos(yaw),sy=Math.sin(yaw),cx=Math.cos(pitch),sx=Math.sin(pitch);
+  for(let zc=1.3;zc<4.2;zc+=.03){
+    const px=ndx*zc/2.1, py=ndy*zc/2.1, pz=zc-2.6;
+    const y1=cx*py+sx*pz, z1=-sx*py+cx*pz;
+    const x2=cy*px-sy*z1, z2=sy*px+cy*z1;
+    const sc=scale*breathNow;
+    const wx=x2/sc, wy=y1/sc, wz=z2/sc;
+    const oy=TC*wy+TS*wz, oz=-TS*wy+TC*wz;
+    const len=Math.hypot(wx,oy,oz); if(len<1e-4) continue;
+    if(len<=cortexRadius(wx/len,oy/len,oz/len).r) return [wx,wy,wz];
+  }
+  return null;
+}
+function regionAt(mx,my){
+  /* march a camera ray through the un-tilted anatomy */
+  const ndx=(mx/W*2-1)*(W/H), ndy=1-my/H*2;
+  const cy=Math.cos(yaw),sy=Math.sin(yaw),cx=Math.cos(pitch),sx=Math.sin(pitch);
+  for(let zc=1.3;zc<4.2;zc+=.018){
+    const px=ndx*zc/2.1, py=ndy*zc/2.1, pz=zc-2.6;
+    /* inverse pitch then inverse yaw */
+    const y1=cx*py+sx*pz, z1=-sx*py+cx*pz;
+    const x2=cy*px-sy*z1, z2=sy*px+cy*z1;
+    const sc=scale*breathNow;
+    let wx=x2/sc, wy=y1/sc, wz=z2/sc;
+    /* un-tilt */
+    const oy=TC*wy+TS*wz, oz=-TS*wy+TC*wz;
+    /* cerebellum ellipsoid */
+    const cb=Math.pow(wx/.36,2)+Math.pow((oy+.40)/.22,2)+Math.pow((oz+.64)/.28,2);
+    if(cb<=1) return 7;
+    const len=Math.hypot(wx,oy,oz); if(len<1e-4) continue;
+    const dx=wx/len, dy=oy/len, dz=oz/len;
+    if(len<=cortexRadius(dx,dy,dz).r) return regionOf(dx,dy,dz);
+  }
+  return -1;
+}
+function openRegion(rg){
+  const opening = xrayT[rg]<.5;
+  xrayT[rg]=opening?1:0;
+  if(opening){
+    const members=[...neurons.keys()].filter(i=>neurons[i].c===rg);
+    for(let k=0;k<3;k++) fireThought(members[(R()*members.length)|0]);
+  }
+}
+cv.addEventListener('pointerdown',e=>{down=true;moved=false;lx=e.clientX;ly=e.clientY;
+  downT=performance.now();cv.classList.add('grabbing');
+  try{cv.setPointerCapture(e.pointerId);}catch(_){}});
+addEventListener('pointerup',e=>{
+  cv.classList.remove('grabbing');
+  if(down&&!moved&&performance.now()-downT<260){
+    const i=pick(e.clientX,e.clientY);
+    if(i>=0){selectFile(i,false);}
+    else{
+      const rg=regionAt(e.clientX,e.clientY);
+      if(rg>=0) openRegion(rg);
+      else{selected=-1;xrayT.fill(0);bolts.length=0;
+        document.querySelectorAll('.frow.sel').forEach(r=>r.classList.remove('sel'));
+        document.getElementById('card').style.display='none';}
+    }
+  }
+  down=false;});
+addEventListener('pointermove',e=>{
+  if(down){
+    const dx=e.clientX-lx,dy=e.clientY-ly;
+    if(Math.abs(dx)+Math.abs(dy)>3)moved=true;
+    yawT+=dx*.005;yaw+=dx*.005;
+    pitchT=Math.max(-1.2,Math.min(1.2,pitchT+dy*.005));
+    lx=e.clientX;ly=e.clientY;
+  }else{
+    /* project the cursor onto the body so the skin can charge */
+    const hitP=surfacePoint(e.clientX,e.clientY);
+    if(hitP){mouse3[0]=hitP[0];mouse3[1]=hitP[1];mouse3[2]=hitP[2];}
+    else{mouse3[0]=9;mouse3[1]=9;mouse3[2]=9;}
+    const i=pick(e.clientX,e.clientY);
+    hovered=i;
+    const tip=document.getElementById('tip');
+    if(i>=0){tip.textContent=neurons[i].path+'  ·  '+REGION_NAME[neurons[i].c];
+      tip.style.display='block';
+      tip.style.left=Math.min(e.clientX+14,innerWidth-320)+'px';
+      tip.style.top=(e.clientY+14)+'px';
+      cv.style.cursor='pointer';}
+    else{tip.style.display='none';cv.style.cursor=down?'grabbing':'grab';}
+  }});
+let view=0, showImp=false, autoRot=true;
+let meshFade=1, dustGain=1, axBase=.05, fibGain=1, focusF=0;
+const important=DATA?DATA.key.slice(0,12):[...Array(NN).keys()].sort((a,b)=>neurons[b].deg-neurons[a].deg).slice(0,10);
+function setView(v){ view=v;
+  for(const k of [0,1,2]) document.getElementById('v'+k).classList.toggle('on',k===v); }
+document.getElementById('v0').onclick=()=>setView(0);
+document.getElementById('v1').onclick=()=>setView(1);
+document.getElementById('v2').onclick=()=>setView(2);
+document.getElementById('bImp').onclick=e=>{showImp=!showImp;e.target.classList.toggle('on',showImp);};
+document.getElementById('bRot').onclick=e=>{autoRot=!autoRot;e.target.classList.toggle('on',autoRot);};
+addEventListener('keydown',e=>{ if(e.key>='1'&&e.key<='3') setView(+e.key-1); });
+window.__setView=setView;
+{
+  const mini=document.getElementById('mini');
+  const lab=document.getElementById('minilab');
+  mini.addEventListener('pointermove',e=>{
+    const r=mini.getBoundingClientRect();
+    miniHover=miniRegionAt(e.clientX-r.left, e.clientY-r.top);
+    if(miniHover>=REGION_NAME.length)miniHover=REGION_NAME.length-1;
+    lab.textContent=miniHover>=0?REGION_NAME[miniHover]:'regions';
+  });
+  mini.addEventListener('pointerleave',()=>{miniHover=-1;lab.textContent='regions';});
+  mini.addEventListener('click',e=>{
+    const r=mini.getBoundingClientRect();
+    let rg=miniRegionAt(e.clientX-r.left, e.clientY-r.top);
+    if(rg>=REGION_NAME.length)rg=REGION_NAME.length-1;
+    if(rg<0)return;
+    openRegion(rg);
+    /* swing the camera to face the chosen lobe */
+    const CTR=[[0,.05,.75],[0,.05,.75],[-.5,.45,-.1],[.5,.45,-.1],[-.75,-.35,.15],[.75,-.35,.15],[0,.1,-.9],[0,-.42,-.62]][rg];
+    const c=rg===0||rg===2||rg===4?[-Math.abs(CTR[0]||.3),CTR[1],CTR[2]]:CTR;
+    yawT=Math.atan2(c[0],-c[2]);
+    pitchT=Math.max(-.9,Math.min(.9,-Math.atan2(c[1],Math.hypot(c[0],c[2]))*.6));
+  });
+  window.__miniPick=(x,y)=>miniRegionAt(x,y);
+}
+const uiGo=()=>document.documentElement.classList.add('ui-ready');
+requestAnimationFrame(()=>requestAnimationFrame(uiGo));
+setTimeout(uiGo,120);
+/* specular rim follows the pointer, brightness falls off with distance */
+const specEls=[...document.querySelectorAll('[data-spec]')];
+addEventListener('pointermove',e=>{
+  for(const el of specEls){
+    const r=el.getBoundingClientRect();
+    const cx=r.left+r.width/2, cy2=r.top+r.height/2;
+    const dx=e.clientX-cx, dy=e.clientY-cy2;
+    const d=Math.hypot(dx,dy);
+    const ang=Math.atan2(dy,dx)+Math.PI/2;
+    el.style.setProperty('--spec-angle',ang.toFixed(3)+'rad');
+    el.style.setProperty('--spec-bright',Math.max(0,Math.min(1,1.15-d/340)).toFixed(3));
+  }
+},{passive:true});
+cv.addEventListener('wheel',e=>{e.preventDefault();
+  scaleT=Math.max(.30,Math.min(2.1,scaleT*Math.exp(-e.deltaY*.0016)));},{passive:false});
+
+const mouse3=[9,9,9];
+let miniHover=-1;
+let W=0,H=0,DPR=1;
+function miniRegionAt(mx,my){
+  /* mx,my local to the 196x150 mini box */
+  const ndx=(mx/196*2-1)*(196/150), ndy=1-my/150*2;
+  const cy=Math.cos(yaw),sy=Math.sin(yaw),cx=Math.cos(pitch),sx=Math.sin(pitch);
+  for(let zc=1.3;zc<4.2;zc+=.02){
+    const px=ndx*zc/2.1, py=ndy*zc/2.1, pz=zc-2.6;
+    const y1=cx*py+sx*pz, z1=-sx*py+cx*pz;
+    const x2=cy*px-sy*z1, z2=sy*px+cy*z1;
+    const sc=.95;
+    const wx=x2/sc, wy=y1/sc, wz=z2/sc;
+    const oy=TC*wy+TS*wz, oz=-TS*wy+TC*wz;
+    const cb=Math.pow(wx/.36,2)+Math.pow((oy+.40)/.22,2)+Math.pow((oz+.64)/.28,2);
+    if(cb<=1) return 7;
+    const len=Math.hypot(wx,oy,oz); if(len<1e-4) continue;
+    const dxx=wx/len, dyy=oy/len, dzz=oz/len;
+    if(len<=cortexRadius(dxx,dyy,dzz).r) return regionOf(dxx,dyy,dzz);
+  }
+  return -1;
+}
+function size(){DPR=Math.min(devicePixelRatio||1,2);
+  W=innerWidth;H=innerHeight;
+  cv.width=W*DPR;cv.height=H*DPR;
+  hud.width=W*DPR;hud.height=H*DPR;
+  hctx.setTransform(DPR,0,0,DPR,0,0);}
+size();addEventListener('resize',size);
+
+let breathNow=1;
+function project(p,out){
+  let x=p[0]*scale*breathNow,y=p[1]*scale*breathNow,z=p[2]*scale*breathNow;
+  const cy=Math.cos(yaw),sy=Math.sin(yaw);
+  let x1=cy*x+sy*z, z1=-sy*x+cy*z;
+  const cx=Math.cos(pitch),sx=Math.sin(pitch);
+  let y1=cx*y-sx*z1, z2=sx*y+cx*z1;
+  const zc=z2+2.6; if(zc<.2)return false;
+  const f=2.1/zc;
+  out[0]=(x1*f/(W/H))*(W/2)+W/2;
+  out[1]=H/2-(y1*f)*(H/2);
+  out[2]=zc;
+  return true;
+}
+const _p=[0,0,0];
+function pick(mx,my){
+  let best=-1,bd=17*17;
+  for(let i=0;i<NN;i++){
+    if(!project([neurons[i].x,neurons[i].y,neurons[i].z],_p))continue;
+    const dx=_p[0]-mx,dy=_p[1]-my,d=dx*dx+dy*dy;
+    if(d<bd){bd=d;best=i;}}
+  return best;
+}
+function showCard(i){
+  const n=neurons[i];
+  const nb=adj[i].slice(0,3).map(k=>{const[a,b]=edges[k];return neurons[a===i?b:a].name;});
+  const card=document.getElementById('card');
+  card.innerHTML=`<b>${n.name}</b><span>${n.path}</span>`+
+    `<em>${REGION_NAME[n.c]} · ${DIRS[n.c]} · ${adj[i].length} links</em>`+
+    (nb.length?`<i>linked: ${nb.join(' · ')}</i>`:'');
+  card.style.display='block';
+}
+
+/* ── file browser ───────────────────────────────────────────────────────── */
+const ROW=[];
+{
+  const flist=document.getElementById('flist');
+  const regColor=r=>{ const c=spectra(0,0,[.9,.9,.2,.2,-.2,-.2,-.9,-.7][r]||0);
+    return `rgb(${(c[0]*255)|0},${(c[1]*255)|0},${(c[2]*255)|0})`; }
+  const frag=document.createDocumentFragment();
+  for(let g=0;g<REGION_NAME.length;g++){
+    const members=[];
+    for(let i=0;i<NN;i++) if(neurons[i].c===g) members.push(i);
+    if(!members.length)continue;
+    const hdr=document.createElement('b'); hdr.textContent=DIRS[g]; frag.appendChild(hdr);
+    members.sort((a,b)=>(neurons[b].hot||neurons[b].deg)-(neurons[a].hot||neurons[a].deg));
+    for(const i of members){
+      const d=document.createElement('div'); d.className='frow'; d.dataset.i=i;
+      d.innerHTML=`<i style="background:${regColor(neurons[i].c%8)}"></i><span>${neurons[i].name}</span>`;
+      d.onclick=()=>selectFile(i,true);
+      frag.appendChild(d); ROW[i]=d; }
+  }
+  flist.appendChild(frag);
+  document.getElementById('fsearch').addEventListener('input',e=>{
+    const q=e.target.value.toLowerCase();
+    for(let i=0;i<NN;i++) if(ROW[i]) ROW[i].style.display=neurons[i].path.toLowerCase().includes(q)?'':'none';
+  });
+}
+function selectFile(i,fly){
+  selected=i; showCard(i); fireThought(i); strike(i);
+  document.querySelectorAll('.frow.sel').forEach(r=>r.classList.remove('sel'));
+  if(ROW[i]){ ROW[i].classList.add('sel'); ROW[i].scrollIntoView({block:'nearest'}); }
+  if(fly){ const nrn=neurons[i];
+    yawT=Math.atan2(nrn.x,-nrn.z); pitchT=Math.max(-.9,Math.min(.9,-Math.atan2(nrn.y,Math.hypot(nrn.x,nrn.z))*.7)); }
+}
+
+/* ── lightning: the connection strike ───────────────────────────────────── */
+const bolts=[];
+const rings=[];
+function strike(i){
+  bolts.length=0;
+  focusF=Math.max(focusF,.9);          /* the lights drop NOW */
+  const seen=new Set();
+  for(const k of adj[i]){
+    const [a,b]=edges[k];
+    const j=a===i?b:a;
+    if(seen.has(j)||j===i)continue; seen.add(j);
+    bolts.push({i,j,seed:R()*100,t0:-1,hit:false});
+    if(bolts.length>=10)break;
+  }
+}
+const MAXBOLT=12, BSEG=18;
+const boltV=new Float32Array(MAXBOLT*2*BSEG*2*3);
+const boltC=new Float32Array(MAXBOLT*2*BSEG*2*3);
+const bBoltV=gl.createBuffer(), bBoltC=gl.createBuffer();
+
+/* ── thought engine ─────────────────────────────────────────────────────── */
+const pulses=[];
+for(let k=0;k<46;k++)pulses.push({e:(k*7)%edges.length,t:(k*.37)%1,v:.005+(k%5)*.002});
+function fireThought(i){
+  for(const k of adj[i].slice(0,8))
+    pulses.push({e:k,t:0,v:.012+R()*.008,from:i,dies:true});
+  neurons[i].flash=1;
+  act[neurons[i].c]=Math.min(1,act[neurons[i].c]+.85);
+}
+
+/* ── frame ──────────────────────────────────────────────────────────────── */
+function setCam(p,t){
+  gl.uniform1f(gl.getUniformLocation(p,'uYaw'),yaw);
+  gl.uniform1f(gl.getUniformLocation(p,'uPitch'),pitch);
+  gl.uniform1f(gl.getUniformLocation(p,'uScale'),scale);
+  gl.uniform1f(gl.getUniformLocation(p,'uAspect'),W/H);
+  gl.uniform1f(gl.getUniformLocation(p,'uBreath'),breathNow);
+  const loc=gl.getUniformLocation(p,'uT');
+  if(loc)gl.uniform1f(loc,t/1000);
+  const dl=gl.getUniformLocation(p,'uDpr');
+  if(dl)gl.uniform1f(dl,DPR);
+}
+function attribs(binds){
+  for(let loc=0;loc<4;loc++){
+    const b=binds[loc];
+    if(b){gl.bindBuffer(gl.ARRAY_BUFFER,b[0]);
+      gl.enableVertexAttribArray(loc);
+      gl.vertexAttribPointer(loc,b[1],gl.FLOAT,false,0,0);}
+    else gl.disableVertexAttribArray(loc);
+  }
+}
+function drawMesh(m,ts){
+  attribs({0:[m.p,3],1:[m.n,3],2:[m.c,3],3:[m.a,4]});
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,m.i);
+  gl.drawElements(gl.TRIANGLES,m.count,gl.UNSIGNED_INT,0);
+}
+function postPass(p,fb,tex,tex2,w,h,dirx,diry){
+  gl.bindFramebuffer(gl.FRAMEBUFFER,fb);
+  gl.viewport(0,0,w,h);
+  gl.useProgram(p);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D,tex);
+  gl.uniform1i(gl.getUniformLocation(p,'uTex'),0);
+  if(tex2!==null){
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D,tex2);
+    gl.uniform1i(gl.getUniformLocation(p,'uBloom'),1);
+  }
+  const dl=gl.getUniformLocation(p,'uDir');
+  if(dl)gl.uniform2f(dl,dirx,diry);
+  attribs({0:[bQuad,2]});
+  gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+}
+let last=0,lastStorm=0;
+window.__frame=(ts)=>frame(ts);
+window.__setCam=(y,p2,s2)=>{yawT=yaw=y;pitchT=pitch=p2;scaleT=scale=s2;};
+window.__openRegion=(r)=>openRegion(r);
+window.__regionAt=(x,y)=>regionAt(x,y);
+function frame(ts){
+  const dt=Math.min(2.5,last?(ts-last)/16.7:1);last=ts;
+  if(!down&&autoRot){yawT+=.0016*dt; pitchT+= .00030*Math.sin(ts*.00023)*dt; scaleT+=.00022*Math.sin(ts*.00017)*dt; pitchT=Math.max(-1.2,Math.min(1.2,pitchT)); scaleT=Math.max(.30,Math.min(2.1,scaleT));}
+  yaw+=(yawT-yaw)*.12; pitch+=(pitchT-pitch)*.12; scale+=(scaleT-scale)*.15;
+  breathNow=1+.020*Math.sin(ts*.0011)+.004*Math.sin(ts*.0053);
+  for(let r=0;r<8;r++)act[r]=Math.max(0,act[r]*.955);
+  let anyOpen=-1;
+  for(let r=0;r<8;r++){
+    const xt=view===2?1:xrayT[r];
+    xray[r]+=(xt-xray[r])*Math.min(1,.09*dt);
+    if(xt>.5)anyOpen=r;}
+  /* strike focus: the lightning owns the frame */
+  let fT=0;
+  if(bolts.length){
+    const a0=bolts[0].t0<0?0:(ts-bolts[0].t0)/1000;
+    fT=a0<1.6?1:.65;
+  }
+  focusF+=(fT-focusF)*Math.min(1,(fT>focusF?.5:.06)*dt);
+  const mfT=(view===1?.05:1)*(1-.62*focusF),
+        dgT=(view===1?.12:1)*(1-.85*focusF),
+        abT=view===1?.30:.05,
+        fgT=(view===1?.28:1)*(1-.85*focusF);
+  meshFade+=(mfT-meshFade)*Math.min(1,.10*dt);
+  dustGain+=(dgT-dustGain)*Math.min(1,.10*dt);
+  axBase+=(abT-axBase)*Math.min(1,.10*dt);
+  fibGain+=(fgT-fibGain)*Math.min(1,.10*dt);
+  for(let k=pulses.length-1;k>=0;k--){
+    const p=pulses[k];
+    p.t+=p.v*dt;
+    if(p.t>=1){
+      const [a,b]=edges[p.e];
+      neurons[b].flash=1;
+      act[neurons[b].c]=Math.min(1,act[neurons[b].c]+.045);
+      if(p.dies&&R()<.5){pulses.splice(k,1);continue;}
+      const na=adj[b];
+      p.e=na.length&&R()<.72?na[(R()*na.length)|0]:(R()*edges.length)|0;
+      p.t=0;
+    }
+  }
+  for(const n of neurons)n.flash*=.93;
+  const stormGap=anyOpen>=0?1600:5200;
+  if(ts-lastStorm>stormGap){lastStorm=ts;
+    if(anyOpen>=0){const m=[...neurons.keys()].filter(i=>neurons[i].c===anyOpen);
+      fireThought(m[(R()*m.length)|0]);}
+    else fireThought((R()*NN)|0);}
+
+  ensureFBOs();
+  gl.bindFramebuffer(gl.FRAMEBUFFER,fbScene);
+  gl.viewport(0,0,fbW,fbH);
+  gl.depthMask(true);              /* clear honours the depth mask */
+  gl.clearColor(0,0,0,1);
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+
+  /* backdrop */
+  gl.disable(gl.DEPTH_TEST);
+  gl.disable(gl.BLEND);
+  gl.useProgram(pBG);
+  gl.uniform1f(gl.getUniformLocation(pBG,'uT'),ts/1000);
+  gl.uniform1f(gl.getUniformLocation(pBG,'uAspect'),W/H);
+  attribs({0:[bQuad,2]});
+  gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+
+  /* interior pre-glow: axons behind the shell */
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA,gl.ONE);
+  gl.useProgram(pInner);setCam(pInner,ts);
+  gl.uniform1fv(gl.getUniformLocation(pInner,'uXray'),xray);
+  gl.uniform1f(gl.getUniformLocation(pInner,'uGain'),view===1?1.5:1);
+  attribs({0:[bInP,3],1:[bInC,3],2:[bInS,1],3:[bInR,1]});
+  gl.drawArrays(gl.POINTS,0,NIN);
+  gl.useProgram(pWeb);setCam(pWeb,ts);
+  gl.uniform1fv(gl.getUniformLocation(pWeb,'uXray'),xray);
+  gl.uniform1f(gl.getUniformLocation(pWeb,'uDim'),1-.85*focusF);
+  attribs({0:[bPlexV,3],1:[bPlexC,3],2:[bPlexR,1]});
+  gl.drawArrays(gl.LINES,0,plexCount);
+  gl.useProgram(pAxon);setCam(pAxon,ts);
+  gl.uniform1fv(gl.getUniformLocation(pAxon,'uXray'),xray);
+  gl.uniform1f(gl.getUniformLocation(pAxon,'uMode'),0);
+  gl.uniform1f(gl.getUniformLocation(pAxon,'uBase'),axBase);
+  attribs({0:[bAxon,3],2:[bAxonR,1]});
+  gl.vertexAttrib3f(1,.55,.72,1);
+  gl.drawArrays(gl.LINES,0,axonVerts.length/3);
+
+  /* the sculpted shell — real geometry, real light */
+  gl.enable(gl.DEPTH_TEST);
+  gl.depthFunc(gl.LEQUAL);
+  gl.depthMask(true);
+  gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+  gl.useProgram(pMesh);setCam(pMesh,ts);
+  gl.uniform1fv(gl.getUniformLocation(pMesh,'uAct'),act);
+  gl.uniform1fv(gl.getUniformLocation(pMesh,'uXray'),xray);
+  gl.uniform1f(gl.getUniformLocation(pMesh,'uFade'),meshFade);
+  drawMesh(mCortex,ts);
+  drawMesh(mCereb,ts);
+  drawMesh(mStem,ts);
+
+  /* additive layers over the shell, depth-tested but not written */
+  gl.depthMask(false);
+  gl.blendFunc(gl.SRC_ALPHA,gl.ONE);
+  gl.useProgram(pWeb);setCam(pWeb,ts);
+  gl.uniform1fv(gl.getUniformLocation(pWeb,'uXray'),xray);
+  gl.uniform1f(gl.getUniformLocation(pWeb,'uDim'),1-.85*focusF);
+  attribs({0:[bWeb,3],1:[bWebC,3],2:[bWebR,1]});
+  gl.drawArrays(gl.LINES,0,webVertCount);
+  gl.useProgram(pSpark);setCam(pSpark,ts);
+  gl.uniform1fv(gl.getUniformLocation(pSpark,'uXray'),xray);
+  gl.uniform3f(gl.getUniformLocation(pSpark,'uMouse'),mouse3[0],mouse3[1],mouse3[2]);
+  gl.uniform1f(gl.getUniformLocation(pSpark,'uGain'),Math.max(.55,dustGain));
+  attribs({0:[bLatP,3],1:[bLatC,3],2:[bLatS,1],3:[bLatR,1]});
+  gl.drawArrays(gl.POINTS,0,NLAT);
+  gl.useProgram(pRib);setCam(pRib,ts);
+  gl.uniform1f(gl.getUniformLocation(pRib,'uGain'),fibGain);
+  attribs({0:[bRib,3],1:[bRibC,3]});
+  gl.vertexAttrib1f(2,-1);
+  gl.drawArrays(gl.LINES,0,ribPts.length/3);
+  /* electric interior shines through opened lobes */
+  gl.useProgram(pAxon);setCam(pAxon,ts);
+  gl.uniform1fv(gl.getUniformLocation(pAxon,'uXray'),xray);
+  gl.uniform1f(gl.getUniformLocation(pAxon,'uMode'),1);
+  gl.uniform1f(gl.getUniformLocation(pAxon,'uBase'),axBase);
+  gl.disable(gl.DEPTH_TEST);
+  attribs({0:[bAxon,3],2:[bAxonR,1]});
+  gl.vertexAttrib3f(1,.55,.72,1);
+  gl.drawArrays(gl.LINES,0,axonVerts.length/3);
+  gl.enable(gl.DEPTH_TEST);
+  gl.useProgram(pSpark);setCam(pSpark,ts);
+  gl.uniform1fv(gl.getUniformLocation(pSpark,'uXray'),xray);
+  gl.uniform3f(gl.getUniformLocation(pSpark,'uMouse'),mouse3[0],mouse3[1],mouse3[2]);
+  gl.uniform1f(gl.getUniformLocation(pSpark,'uGain'),dustGain);
+  attribs({0:[bSparkP,3],1:[bSparkC,3],2:[bSparkS,1],3:[bSparkR,1]});
+  gl.drawArrays(gl.POINTS,0,NSPK);
+  gl.useProgram(pFib);setCam(pFib,ts);
+  gl.uniform1f(gl.getUniformLocation(pFib,'uGain'),fibGain);
+  attribs({0:[bFib,3],1:[bFibC,3],2:[bFibM,4]});
+  gl.drawArrays(gl.POINTS,0,fibCount);
+
+  /* lightning strikes: jittering arcs from the chosen file to its kin */
+  let bv=0;
+  for(const bl of bolts){
+    if(bl.t0<0)bl.t0=ts;
+    const A=neurons[bl.i], B=neurons[bl.j];
+    const age=(ts-bl.t0)/1000;
+    const head=Math.min(1,age/.35);
+    act[A.c]=Math.min(1,act[A.c]+.030*dt);
+    act[B.c]=Math.min(1,act[B.c]+.020*dt*head);
+    if(head>=1&&!bl.hit){bl.hit=true;B.flash=1;act[B.c]=Math.min(1,act[B.c]+.35);
+      rings.push({i:bl.j,t0:ts});}
+    let settle=age<1.2?1:Math.max(.45,1-(age-1.2)*.9);
+    /* periodic re-strike: the link re-fires every 2.2s */
+    const rep2=age>1.2?((age-1.2)%2.2):99;
+    if(rep2<.30)settle=Math.max(settle,1.-rep2*1.5);
+    const dx=B.x-A.x, dy=B.y-A.y, dz=B.z-A.z;
+    const L=Math.hypot(dx,dy,dz)||1;
+    let p1x=dy/L,p1y=-dx/L,p1z=0;
+    const pl=Math.hypot(p1x,p1y,p1z)||1; p1x/=pl;p1y/=pl;p1z/=pl;
+    const p2x=(dy*p1z-dz*p1y)/L, p2y=(dz*p1x-dx*p1z)/L, p2z=(dx*p1y-dy*p1x)/L;
+    for(let pass=0;pass<2;pass++){
+      let lx=A.x,ly=A.y,lz=A.z;
+      for(let sg=1;sg<=BSEG;sg++){
+        const u=sg/BSEG;
+        if(u>head)break;
+        const env=Math.sin(Math.PI*u)*Math.min(.11,.05+L*.06)*settle*(pass?1.7:1);
+        const j1=(vnoise(bl.seed+u*9+pass*37, ts*.006, bl.seed)-.5)*2;
+        const j2=(vnoise(bl.seed+u*9+61+pass*17, ts*.005, bl.seed+9)-.5)*2;
+        const px=A.x+dx*u+(p1x*j1+p2x*j2)*env;
+        const py=A.y+dy*u+(p1y*j1+p2y*j2)*env;
+        const pz=A.z+dz*u+(p1z*j1+p2z*j2)*env;
+        if(bv<boltV.length-6){
+          boltV[bv]=lx;boltV[bv+1]=ly;boltV[bv+2]=lz;
+          boltV[bv+3]=px;boltV[bv+4]=py;boltV[bv+5]=pz;
+          const w=(pass?0.55:1.0)*settle*(1-.25*Math.abs(2*u-1));
+          const cb=pass?[.55,.8,1]:[1,1,1];
+          boltC[bv]=cb[0]*w;boltC[bv+1]=cb[1]*w;boltC[bv+2]=cb[2]*w;
+          boltC[bv+3]=cb[0]*w;boltC[bv+4]=cb[1]*w;boltC[bv+5]=cb[2]*w;
+          bv+=6;
+        }
+        lx=px;ly=py;lz=pz;
+      }
+    }
+  }
+  /* (bolt bodies are rendered as dense overlapping sprites in the dot pass) */
+
+  /* thoughts + neuron ghosts: x-ray through the shell */
+  gl.disable(gl.DEPTH_TEST);
+  let nd=0;
+  for(let i=0;i<NN;i++){
+    const n=neurons[i];
+    const [r,g,b]=nCol[i];
+    const xr=xray[n.c];
+    const imp=showImp&&important.includes(i);
+    let gh=(.42+.85*xr)*(view===1?1.9:1);
+    if(showImp) gh*=imp?1.25:.5;
+    const breathe=1+.1*Math.sin(ts*.0019+n.ph);
+    dotPos[nd*3]=n.x;dotPos[nd*3+1]=n.y;dotPos[nd*3+2]=n.z;
+    const f=n.flash;
+    dotCol[nd*3]=Math.min(1,r+f)*gh;dotCol[nd*3+1]=Math.min(1,g+f)*gh;dotCol[nd*3+2]=Math.min(1,b+f)*gh;
+    dotSize[nd]=((3.0+Math.min(5,Math.sqrt(n.deg)*1.4))*breathe+(i===selected?2.5:0)+(i===hovered?1.5:0)+f*3)*(1+xr*1.15)*(view===1?1.45:1)+(imp?2.5:0);
+    nd++;
+  }
+  /* electric: long jittering comet trails */
+  for(const bl of bolts){
+    if(bl.t0<0)continue;
+    const A=neurons[bl.i],B=neurons[bl.j];
+    const age=(ts-bl.t0)/1000;
+    const head=Math.min(1,age/.35);
+    const dxg=B.x-A.x, dyg=B.y-A.y, dzg=B.z-A.z;
+    const Lg=Math.hypot(dxg,dyg,dzg)||1;
+    const age2=(ts-bl.t0)/1000;
+    let sett=age2<1.2?1:.55;
+    const rep3=age2>1.2?((age2-1.2)%2.2):99;
+    if(rep3<.30)sett=Math.max(sett,1.-rep3*1.2);
+    const glowN=Math.max(24,Math.min(60,(Lg*80)|0));
+    for(let g3=1;g3<glowN;g3++){
+      if(nd>=MAXDOT-4)break;
+      const u=g3/glowN;
+      if(u>head)break;
+      const j1=(vnoise(bl.seed+u*9, ts*.006, bl.seed)-.5)*2;
+      const j2=(vnoise(bl.seed+u*9+61, ts*.005, bl.seed+9)-.5)*2;
+      const env=Math.sin(Math.PI*u)*Math.min(.11,.05+Lg*.06)*sett;
+      const px2=A.x+dxg*u+(j1*env)*.55, py2=A.y+dyg*u+(j2*env)*.55, pz2=A.z+dzg*u;
+      const hot=1-.30*Math.abs(2*u-1);
+      const vary=.7+.55*vnoise(bl.seed*3+u*22, ts*.01, 4.2);
+      const gw=(.92+.08*Math.sin(ts*.016+bl.seed+u*24))*sett*hot;
+      /* wide cool halo — overlapping for a continuous beam */
+      dotPos[nd*3]=px2;dotPos[nd*3+1]=py2;dotPos[nd*3+2]=pz2;
+      dotCol[nd*3]=gw*.40;dotCol[nd*3+1]=gw*.72;dotCol[nd*3+2]=gw;
+      dotSize[nd]=(19+10*Math.sin(Math.PI*u))*vary*(.7+.3*sett);
+      nd++;
+      /* blown white core */
+      dotPos[nd*3]=px2;dotPos[nd*3+1]=py2;dotPos[nd*3+2]=pz2;
+      dotCol[nd*3]=1.7*gw;dotCol[nd*3+1]=1.7*gw;dotCol[nd*3+2]=1.65*gw;
+      dotSize[nd]=(8.5+5.5*Math.sin(Math.PI*u))*vary*(.7+.3*sett);
+      nd++;
+      /* crackle filament: displaced thin secondary chain */
+      if(g3%2===0&&nd<MAXDOT-2){
+        dotPos[nd*3]=A.x+dxg*u+(j2*env)*1.5;
+        dotPos[nd*3+1]=A.y+dyg*u+(j1*env)*1.5;
+        dotPos[nd*3+2]=pz2;
+        dotCol[nd*3]=gw*.8;dotCol[nd*3+1]=gw*.9;dotCol[nd*3+2]=gw;
+        dotSize[nd]=3.2*vary;
+        nd++;
+      }
+    }
+    /* source flare: the hottest pixel in frame lives at the origin */
+    if(nd<MAXDOT-2){
+      const fl=(.8+.2*Math.sin(ts*.02+bl.seed))*sett;
+      dotPos[nd*3]=A.x;dotPos[nd*3+1]=A.y;dotPos[nd*3+2]=A.z;
+      dotCol[nd*3]=1.8*fl;dotCol[nd*3+1]=1.8*fl;dotCol[nd*3+2]=1.75*fl;
+      dotSize[nd]=20*fl+6;
+      nd++;
+    }
+    if(bl.hit&&nd<MAXDOT-2&&(ts-bl.t0)/1000<1.35){
+      dotPos[nd*3]=B.x;dotPos[nd*3+1]=B.y;dotPos[nd*3+2]=B.z;
+      const bw=Math.max(0,1-((ts-bl.t0)/1000-.35)/1.0);
+      dotCol[nd*3]=1.7*bw;dotCol[nd*3+1]=1.7*bw;dotCol[nd*3+2]=1.65*bw;
+      dotSize[nd]=24*bw+5;
+      nd++;
+    }
+    if(nd<MAXDOT-2){
+      const hx=A.x+(B.x-A.x)*head, hy=A.y+(B.y-A.y)*head, hz=A.z+(B.z-A.z)*head;
+      dotPos[nd*3]=hx;dotPos[nd*3+1]=hy;dotPos[nd*3+2]=hz;
+      const hw=head<1?1:.5+.5*Math.sin(ts*.02+bl.seed);
+      dotCol[nd*3]=hw;dotCol[nd*3+1]=hw;dotCol[nd*3+2]=hw;
+      dotSize[nd]=head<1?9:5.5;
+      nd++;
+    }
+  }
+  for(const p of pulses){
+    const xr=xray[neurons[edges[p.e][0]].c];
+    const trail=3+(xr>.3?3:0);
+    for(let g2=0;g2<trail;g2++){
+      if(nd>=MAXDOT)break;
+      const tt=Math.max(0,p.t-g2*.045);
+      const [x,y,z]=axonPoint(p.e,tt);
+      const j=g2===0?0:.006*(1+xr*1.5);
+      dotPos[nd*3]=x+(R()-.5)*j;dotPos[nd*3+1]=y+(R()-.5)*j;dotPos[nd*3+2]=z+(R()-.5)*j;
+      const w=(1-g2/trail)*(0.8+xr*.5);
+      dotCol[nd*3]=w;dotCol[nd*3+1]=w*.94;dotCol[nd*3+2]=w*(.75+.25*xr);
+      dotSize[nd]=(3.6-g2*.5)*(1+xr*.4);
+      nd++;
+    }
+  }
+  gl.useProgram(pDot);setCam(pDot,ts);
+  gl.uniform1f(gl.getUniformLocation(pDot,'uGhost'),.5);
+  gl.bindBuffer(gl.ARRAY_BUFFER,bDotP);gl.bufferData(gl.ARRAY_BUFFER,dotPos.subarray(0,nd*3),gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0);
+  gl.bindBuffer(gl.ARRAY_BUFFER,bDotC);gl.bufferData(gl.ARRAY_BUFFER,dotCol.subarray(0,nd*3),gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(1);gl.vertexAttribPointer(1,3,gl.FLOAT,false,0,0);
+  gl.bindBuffer(gl.ARRAY_BUFFER,bDotS);gl.bufferData(gl.ARRAY_BUFFER,dotSize.subarray(0,nd),gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(2);gl.vertexAttribPointer(2,1,gl.FLOAT,false,0,0);
+  gl.disableVertexAttribArray(3);
+  gl.drawArrays(gl.POINTS,0,nd);
+
+  /* mini navigator: the whole brain, flat region tints, corner viewport */
+  {
+    const mw=196*DPR, mh=150*DPR;
+    const mx=18*DPR;
+    const gy=fbH-(16*DPR)-mh;
+    gl.enable(gl.SCISSOR_TEST);
+    gl.scissor(mx,gy,mw,mh);
+    gl.clear(gl.DEPTH_BUFFER_BIT);
+    gl.viewport(mx,gy,mw,mh);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthMask(true);
+    gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+    gl.useProgram(pMesh);
+    gl.uniform1f(gl.getUniformLocation(pMesh,'uYaw'),yaw);
+    gl.uniform1f(gl.getUniformLocation(pMesh,'uPitch'),pitch);
+    gl.uniform1f(gl.getUniformLocation(pMesh,'uScale'),.95);
+    gl.uniform1f(gl.getUniformLocation(pMesh,'uAspect'),mw/mh);
+    gl.uniform1f(gl.getUniformLocation(pMesh,'uBreath'),1);
+    gl.uniform1f(gl.getUniformLocation(pMesh,'uT'),ts/1000);
+    gl.uniform1f(gl.getUniformLocation(pMesh,'uFade'),1);
+    gl.uniform1fv(gl.getUniformLocation(pMesh,'uAct'),act);
+    gl.uniform1f(gl.getUniformLocation(pMesh,'uMini'),1);
+    gl.uniform1f(gl.getUniformLocation(pMesh,'uMiniHov'),miniHover);
+    gl.uniform1fv(gl.getUniformLocation(pMesh,'uXray'),xray);
+    drawMesh(mCortex,ts);
+    drawMesh(mCereb,ts);
+    drawMesh(mStem,ts);
+    gl.uniform1f(gl.getUniformLocation(pMesh,'uMini'),0);
+    gl.disable(gl.SCISSOR_TEST);
+    gl.depthMask(false);
+    gl.disable(gl.DEPTH_TEST);
+    gl.viewport(0,0,fbW,fbH);
+  }
+
+  /* bloom + grade */
+  gl.disable(gl.BLEND);
+  const hw=fbW>>1, hh=fbH>>1;
+  postPass(pBright,fbA,txScene,null,hw,hh,0,0);
+  postPass(pBlur,fbB,txA,null,hw,hh,1.6/hw,0);
+  postPass(pBlur,fbA,txB,null,hw,hh,0,1.6/hh);
+  postPass(pBlur,fbB,txA,null,hw,hh,2.6/hw,0);
+  postPass(pBlur,fbA,txB,null,hw,hh,0,2.6/hh);
+  /* god rays sample the bright pass before the bloom blurs eat it */
+  postPass(pRays,fbC,txA,null,hw,hh,0,0);
+  postPass(pBlur,fbD,txC,null,hw,hh,1.8/hw,0);
+  postPass(pBlur,fbC,txD,null,hw,hh,0,1.8/hh);
+  /* DOF: blurred copy of the whole scene */
+  postPass(pBlur,fbD,txScene,null,hw,hh,2.2/hw,0);
+  postPass(pBlur,fbB,txD,null,hw,hh,0,2.2/hh);
+  postPass(pBlur,fbD,txB,null,hw,hh,3.4/hw,0);
+  postPass(pBlur,fbB,txD,null,hw,hh,0,3.4/hh);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+  gl.viewport(0,0,fbW,fbH);
+  gl.useProgram(pComp);
+  gl.activeTexture(gl.TEXTURE2);
+  gl.bindTexture(gl.TEXTURE_2D,txB);
+  gl.uniform1i(gl.getUniformLocation(pComp,'uBlur'),2);
+  gl.activeTexture(gl.TEXTURE3);
+  gl.bindTexture(gl.TEXTURE_2D,txC);
+  gl.uniform1i(gl.getUniformLocation(pComp,'uRays'),3);
+  postPass(pComp,null,txScene,txA,fbW,fbH,0,0);
+
+  /* HUD */
+  hctx.clearRect(0,0,W,H);
+  for(let k=rings.length-1;k>=0;k--){
+    const rg=rings[k];
+    const age=(ts-rg.t0)/1000;
+    if(age>.8){rings.splice(k,1);continue;}
+    const nn3=neurons[rg.i];
+    if(!project([nn3.x,nn3.y,nn3.z],_p))continue;
+    const fw=1-age/.8;
+    hctx.strokeStyle=`rgba(255,255,255,${(.9*fw).toFixed(3)})`;
+    hctx.lineWidth=2.2;
+    hctx.beginPath();hctx.arc(_p[0],_p[1],4+age*52,0,7);hctx.stroke();
+    hctx.strokeStyle=`rgba(150,215,255,${(.6*fw).toFixed(3)})`;
+    hctx.lineWidth=1.2;
+    hctx.beginPath();hctx.arc(_p[0],_p[1],4+age*30,0,7);hctx.stroke();
+  }
+  if(showImp){
+    hctx.font='600 10.5px system-ui,sans-serif';
+    for(const i of important){
+      const nn2=neurons[i];
+      if(!project([nn2.x,nn2.y,nn2.z],_p))continue;
+      hctx.strokeStyle='rgba(255,196,110,.75)';hctx.lineWidth=1.1;
+      hctx.beginPath();hctx.arc(_p[0],_p[1],9,0,7);hctx.stroke();
+      hctx.fillStyle='rgba(0,0,0,.6)';hctx.fillText(nn2.name,_p[0]+13,_p[1]+3.6);
+      hctx.fillStyle='rgba(255,224,178,.95)';hctx.fillText(nn2.name,_p[0]+12.4,_p[1]+3);
+    }
+  }
+  if(selected>=0&&project([neurons[selected].x,neurons[selected].y,neurons[selected].z],_p)){
+    hctx.strokeStyle='rgba(255,220,160,.9)';hctx.lineWidth=1.4;
+    hctx.beginPath();hctx.arc(_p[0],_p[1],14+2*Math.sin(ts*.004),0,7);hctx.stroke();
+    hctx.font='600 11px system-ui,sans-serif';
+    const nm=neurons[selected].name;
+    hctx.fillStyle='rgba(0,0,0,.6)';hctx.fillText(nm,_p[0]+19,_p[1]+4.6);
+    hctx.fillStyle='rgba(240,232,216,.95)';hctx.fillText(nm,_p[0]+18.4,_p[1]+4);
+    /* linked files stay marked while the selection holds */
+    hctx.font='500 10px system-ui,sans-serif';
+    const cells=new Set();
+    for(const bl of bolts){
+      const nb=neurons[bl.j];
+      if(!project([nb.x,nb.y,nb.z],_p))continue;
+      const pulse=.65+.30*Math.sin(ts*.005+bl.seed);
+      hctx.strokeStyle=`rgba(150,215,255,${pulse.toFixed(3)})`;
+      hctx.lineWidth=1.4;
+      hctx.beginPath();hctx.arc(_p[0],_p[1],7,0,7);hctx.stroke();
+      const a0=ts*.0016;
+      hctx.strokeStyle=`rgba(150,215,255,${(pulse*.7).toFixed(3)})`;
+      hctx.lineWidth=1.1;
+      for(let q=0;q<3;q++){
+        hctx.beginPath();hctx.arc(_p[0],_p[1],12.5,a0+q*2.094,a0+q*2.094+1.25);hctx.stroke();
+      }
+      for(let q=0;q<4;q++){
+        const aa=q*Math.PI/2+Math.PI/4;
+        hctx.beginPath();
+        hctx.moveTo(_p[0]+Math.cos(aa)*16,_p[1]+Math.sin(aa)*16);
+        hctx.lineTo(_p[0]+Math.cos(aa)*20,_p[1]+Math.sin(aa)*20);
+        hctx.stroke();
+      }
+      const cell=((_p[0]/90)|0)+':'+((_p[1]/22)|0);
+      if(cells.has(cell))continue;
+      cells.add(cell);
+      hctx.font='500 10px system-ui,sans-serif';
+      const tw=hctx.measureText(nb.name).width;
+      hctx.fillStyle='rgba(6,11,22,.78)';
+      hctx.beginPath();hctx.roundRect(_p[0]+20,_p[1]-8,tw+14,17,5);hctx.fill();
+      hctx.strokeStyle='rgba(150,215,255,.30)';hctx.lineWidth=1;
+      hctx.beginPath();hctx.roundRect(_p[0]+20,_p[1]-8,tw+14,17,5);hctx.stroke();
+      hctx.fillStyle='rgba(200,230,255,.97)';hctx.fillText(nb.name,_p[0]+27,_p[1]+4);
+    }
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body></html>
