@@ -1,16 +1,14 @@
 ---
 name: dwago
-description: "Use for any question about a codebase — how something works, where a thing lives, what a change will break, who owns a file, what else must change with it. Semantic search plus git-history intelligence over a graphify knowledge graph. When dwago-out/ exists, treat the question as a dwago query first."
+description: "Use for any question about a codebase — how something works, where a thing lives, what a change will break, who owns a file, what else must change with it. Semantic search plus git-history intelligence over a code graph dwago builds itself. When dwago-out/ exists, treat the question as a dwago query first."
 ---
 
 # dwago
 
-Semantic retrieval, change-impact analysis and GPU visualization over a
-[graphify](https://github.com/Graphify-Labs/graphify) knowledge graph.
-
-graphify extracts the graph; dwago makes it answerable. It adds embeddings and
-graph diffusion (graphify's search is substring matching), a git-history layer
-(graphify has none), and a visualization that does not stop at 5,000 nodes.
+Semantic retrieval, change-impact analysis and a living-brain visualization
+over a code knowledge graph dwago builds itself: tree-sitter parsing of every
+file and symbol, import resolution, community detection, and a git-history
+layer no parser can produce.
 
 ## Decide what to do
 
@@ -34,17 +32,13 @@ rebuild. Do not read files one by one to answer a question the index covers.
 ## Building
 
 ```bash
-dwago build .            # full: needs graphify-out/graph.json to exist
+dwago build .            # parse + index the repository (local, no API key)
 dwago build . --fast     # static embeddings, no torch — minutes, not hours
 ```
 
-`build` requires graphify's graph first. If `graphify-out/graph.json` is missing,
-create it:
-
-```bash
-graphify update .          # code only, no LLM, no API key
-graphify extract .         # includes docs/PDFs, needs an LLM backend
-```
+Extraction is built in: tree-sitter over Python, TS/TSX, JS, Go, Rust, Java,
+C, C++, C#, Ruby and PHP, plus Markdown as document nodes. An existing
+node-link `graph.json` from another tool can be ingested with `--graph`.
 
 On a large repository with the default encoder, `build` prints a time estimate
 and stops rather than silently starting an hours-long job. Pass `--yes` to
@@ -86,4 +80,3 @@ Load only what the task needs.
 - `references/viz.md` — visualization modes and limits
 - `references/mcp.md` — MCP tools for agents
 - `references/eval.md` — the benchmark, and what it measured here
-- `references/coexist.md` — running alongside graphify's own skill

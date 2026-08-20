@@ -1,6 +1,6 @@
 # The benchmark
 
-Any claim that this retrieves better than graphify is worthless unless it is a
+Any claim that this retrieves well is worthless unless it is a
 measured number on your own repository — including when the answer is "it
 doesn't". `dwago eval` produces that number.
 
@@ -47,7 +47,7 @@ Rungs are compared with a **paired** bootstrap: both configurations answer the
 same queries, and variance between queries dwarfs the difference between
 systems, so an unpaired test would drown a real effect.
 
-Measured on graphify's own repository — 150 held-out changes, leak-free split,
+Measured on a 1,400-commit OSS Python repository — 150 held-out changes, leak-free split,
 `--fast` (potion-base-8M) embeddings:
 
 | rung | R@1 | R@5 | R@10 | R@20 | MRR | s/query |

@@ -1,88 +1,107 @@
 # dwago
 
-Semantic retrieval, git-history intelligence and a living-brain visualization,
-layered over [graphify](https://github.com/Graphify-Labs/graphify) knowledge
-graphs.
+Ask your codebase anything. dwago builds a knowledge graph of your repository
+— every file, symbol and import, parsed with tree-sitter — layers your git
+history on top of it, and answers through whichever surface fits: a CLI, an
+MCP server any coding agent can call, an agent skill, or a living-brain map
+you can fly through.
 
-graphify extracts the graph — 37 tree-sitter language extractors, Leiden
-communities, multi-backend LLM extraction. That part is mature and dwago does
-not reimplement it. dwago adds everything *behind* the graph:
+No API key, no cloud, no extraction service. `dwago build` is a local parse.
 
-| | graphify | dwago |
-|---|---|---|
-| Retrieval | case-folded substring + IDF | BM25 + embeddings fused by RRF, exact-symbol fast path, then Personalized PageRank |
-| Traversal | uniform BFS/DFS | relevance-weighted diffusion over structural + temporal channels |
-| Git history | — | co-change coupling (G-test), hotspots, ownership, bus factor |
-| Visualization | vis-network 2D, CDN-loaded, 5,000-node cap | the codebase as a living brain: files are neurons inside an anatomical cortex, communities are lobes, dependencies fire as electric strikes; offline, single file |
-| Agent surface | 10 MCP tools over lexical search | 13 tools over semantic search + history (`context_pack`, `diff_impact`, `path`, `cycles`, `tests_for`, …) |
-| Identity | node ids change across updates | content-addressed keys, atomic epoch swaps, dirty-set re-embedding |
+## What it answers
 
-Measured, not promised — leak-free PR-mined eval (time-split, paired bootstrap):
+| question | command |
+|---|---|
+| where is X / how does Y work | `dwago ask "how do we prevent double charging?"` |
+| everything an agent needs for a task, token-budgeted, cited | `dwago pack "migrate the session store" --budget 8000` |
+| what breaks if I touch this | `dwago impact src/auth/session.ts` |
+| what else always changes with this file | `dwago co-change src/db/store.ts` |
+| where does change concentrate; who owns it | `dwago hotspots`, bus factor included |
+| what did the last N commits ripple into | `diff_impact` (MCP) |
+| which tests cover this | `tests_for` (MCP) |
+| how are A and B connected; where are the cycles | `path`, `cycles` (MCP) |
+| show me the whole thing | `dwago map` — the brain |
 
-- repo 1 (graphify itself): file R@5 0.583 → **0.715** end-to-end, significant
-- repo 2 (a private TS/IaC monorepo): R@20 +3.7pt significant; R@5 regressed
-  with the `--fast` embedder — recorded in `references/eval.md`, full-size
-  encoder evaluation still open. Run `dwago eval` on your own repo; the
-  harness is the point.
+Under the hood: BM25 + dense embeddings fused with reciprocal-rank fusion, an
+exact-symbol fast path, then Personalized PageRank over two graph channels —
+structure (imports, containment) and history (statistically significant
+co-change). Retrieval is *measured*, not promised: `dwago eval` mines your own
+git history into a leak-free, time-split benchmark with paired bootstrap CIs.
+Run it before trusting us.
 
 ## Install
 
-Prerequisite: [graphify](https://github.com/Graphify-Labs/graphify)
-(`uv tool install graphifyy`).
-
 ```bash
-# CLI — from GitHub
 uv tool install "dwago[lexical,fast,mcp] @ git+https://github.com/Dwago20/dwago"
-
-# or from a clone, editable, with the full dense tier
-pip install -e ".[dense,lexical,mcp]"
-```
-
-### The Claude Code skill (`/dwago`)
-
-```bash
-git clone https://github.com/Dwago20/dwago
-mkdir -p ~/.claude/skills/dwago
-cp dwago/SKILL.md ~/.claude/skills/dwago/
-cp -r dwago/references ~/.claude/skills/dwago/
-```
-
-If the graphify skill is also installed, read `references/coexist.md` —
-two skills answering "any question about a codebase" will collide.
-
-### The MCP server
-
-```bash
-claude mcp add dwago -- dwago serve /path/to/repo
+# or, from a clone:  pip install -e ".[lexical,fast,mcp]"
+# best retrieval quality (torch + a real encoder):  ".[lexical,dense,mcp]"
 ```
 
 ## Use
 
 ```bash
-graphify update .                    # substrate (code only, no API key)
-dwago build . --fast                 # minutes; drop --fast for the full encoder
-dwago ask "how do we prevent double charging?"
-dwago pack "migrate the session store" --budget 8000
-dwago impact src/auth/session.ts
-dwago co-change src/db/store.ts
-dwago hotspots -n 20
-dwago map                            # the brain (brain.html); --galaxy for symbols
-dwago summarize                      # community summaries (needs claude CLI or ANTHROPIC_API_KEY)
-dwago eval                           # measure it on your repo before trusting it
+dwago build . --fast     # parse + index; minutes on a large repo
+dwago ask "where is the OIDC issuer configured?"
+dwago map                # writes dwago-out/brain.html — open it
+dwago eval               # benchmark retrieval on your own history
 ```
 
-`dwago refresh` chains onto graphify's post-commit hook: only dirty nodes are
-re-embedded, and readers never see a torn index.
+`dwago refresh` after a commit re-embeds only what changed; readers never see
+a torn index (atomic epoch swap).
+
+## Hook it into your agent
+
+**Any MCP client** (Cursor, Claude Code, Codex CLI, Cline, Windsurf, Zed, …):
+
+```bash
+dwago serve /path/to/repo        # stdio MCP server, 13 tools
+```
+
+e.g. Claude Code: `claude mcp add dwago -- dwago serve .` · Cursor: add the
+same command under `mcpServers` in `.cursor/mcp.json`.
+
+**As an agent skill** — `SKILL.md` is plain markdown instructions with a
+frontmatter description; it works anywhere skills or rules files do:
+
+```bash
+# Claude Code
+mkdir -p ~/.claude/skills/dwago && cp SKILL.md ~/.claude/skills/dwago/ && cp -r references ~/.claude/skills/dwago/
+# Codex / Cursor / other agents: point your rules at SKILL.md, or paste it into
+# AGENTS.md — it is instructions + a command table, nothing Claude-specific.
+```
+
+**Plain CLI** — no agent, no LLM: everything above works from a terminal.
+
+Community summaries (`dwago summarize`) are the only feature that touches an
+LLM, and the backend is pluggable: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, a
+local `claude` CLI, or skip it entirely.
+
+## The brain
+
+`dwago map` renders your repository as a living brain: files are neurons
+placed inside an anatomical cortex, the largest communities are the lobes
+(named from your real directory structure), and dependencies are the axons.
+Click a file and electric strikes fire along its real edges while everything
+else dims; the mini-brain in the corner works like a CAD view-cube — click a
+lobe to open it. Searchable file panel, key-file overlay from git hotspots,
+x-ray views. One self-contained HTML file, fully offline.
+
+`dwago map --galaxy` renders the symbol-level map instead.
+
+## Languages
+
+Python, TypeScript/TSX, JavaScript, Go, Rust, Java, C, C++, C#, Ruby, PHP —
+plus Markdown/RST/text as document nodes. Import-edge resolution is exact for
+Python and TS/JS; other languages connect through containment and co-change.
+An existing node-link `graph.json` from another extractor can be ingested
+with `dwago build --graph path/to/graph.json`.
 
 ## Status
 
-Working and tested (65 tests): hybrid retrieval, PPR, temporal layer, eval
-harness, brain + galaxy maps, MCP server, incremental refresh, summaries
-(cached; needs an LLM backend configured).
-
-Open: SCIP precision edges, coverage-backed `tests_for` (currently a labelled
-heuristic), symbol-level co-change, usearch ANN above 200k nodes, full-size
-dense-tier evaluation.
+Tested (67 tests): extraction, hybrid retrieval, PPR, temporal layer, eval
+harness, brain + galaxy maps, MCP server, incremental refresh, cached
+summaries. Open: SCIP precision edges, coverage-backed `tests_for` (currently
+a labelled heuristic), symbol-level co-change, ANN above 200k nodes.
 
 ## License
 

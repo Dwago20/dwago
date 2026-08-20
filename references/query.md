@@ -1,6 +1,6 @@
 # Retrieval
 
-graphify matches queries by case-folded substring plus IDF over node labels.
+Plain lexical search matches queries by substring over node labels.
 There is no stemming, no synonyms, no semantic match — which is why its own
 skill ships a manual workaround instructing the model to read a vocabulary file
 and hand-pick up to twelve tokens before searching. dwago removes that step.
@@ -24,7 +24,7 @@ first ~15 body lines            → only when there is no docstring
 
 Identifier splitting is the highest-value transformation and handles the
 acronym boundary correctly (`HTTPServer` → `http server`, not `h t t p server`).
-CJK text is segmented with jieba when installed, matching graphify's own
+CJK text is segmented with jieba when installed, matching common extractor
 handling.
 
 ## Stages
@@ -73,7 +73,7 @@ through the test suite and never reaches the implementation.
 ## Duplicate suppression
 
 At most two results may share a label. Real repositories vendor the same file
-into many places — graphify copies one reference doc into fourteen per-platform
+into many places — some tools copy one reference doc into fourteen per-platform
 skill directories — and without this a single document occupies most of the
 result list.
 

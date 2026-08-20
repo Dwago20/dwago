@@ -64,7 +64,10 @@ def cmd_build(args) -> int:
 
     try:
         with Store.begin(root, inherit=not args.force) as st:
-            print(f"Ingesting graph.json from {root}...")
+            if args.graph:
+                print(f"Ingesting {args.graph}...")
+            else:
+                print(f"Extracting {root}...")
             res = ingest(root, st, args.graph)
             print(f"  {_fmt_int(res.nodes)} nodes · {_fmt_int(res.edges)} edges · "
                   f"span coverage {res.span_coverage:.0%}")
@@ -357,8 +360,8 @@ def cmd_summarize(args) -> int:
     for e in r["errors"][:5]:
         print(f"  ! {e}")
     if r["errors"] and r["written"] == 0:
-        print("  (no backend available — set ANTHROPIC_API_KEY or "
-              "authenticate the claude CLI)")
+            print("  (no backend available — set OPENAI_API_KEY or "
+              "ANTHROPIC_API_KEY, or authenticate a local claude CLI)")
     return 0 if not r["errors"] or r["written"] else 1
 
 
@@ -390,7 +393,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="dwago",
         description="Retrieval, git-temporal intelligence and GPU visualization "
-                    "over a graphify knowledge graph.",
+                    "over a code knowledge graph it builds itself.",
     )
     p.add_argument("-v", "--verbose", action="store_true")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -400,7 +403,7 @@ def build_parser() -> argparse.ArgumentParser:
         return sp
 
     b = add_common(sub.add_parser("build", help="build or rebuild the index"))
-    b.add_argument("--graph", help="path to graph.json (default: <path>/graphify-out/graph.json)")
+    b.add_argument("--graph", help="ingest an existing graph.json instead of extracting")
     b.add_argument("--fast", action="store_true",
                    help="static embeddings, no torch — minutes instead of hours")
     b.add_argument("--embed-backend", default="auto",
@@ -490,8 +493,9 @@ def build_parser() -> argparse.ArgumentParser:
                                     help="LLM summaries for the largest communities"))
     sm.add_argument("-n", type=int, default=20)
     sm.add_argument("--backend", default="auto",
-                    choices=["auto", "claude-cli", "anthropic", "none"])
-    sm.add_argument("--model", default="claude-haiku-4-5-20251001")
+                    choices=["auto", "openai", "anthropic", "claude-cli", "none"])
+    sm.add_argument("--model", default=None,
+                    help="model id for the chosen backend")
     sm.set_defaults(func=cmd_summarize)
 
     mp.add_argument("--galaxy", action="store_true",

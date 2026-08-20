@@ -6,10 +6,12 @@ a query running during a rebuild never sees a half-written index.
 
 ## Stages
 
-1. **Ingest** — read `graphify-out/graph.json`, validate its shape, remap node
+1. **Extract & ingest** — walk the repository, tree-sitter every supported
+   file into file + symbol nodes, resolve Python/TS/JS imports into edges,
+   detect communities (Louvain, named from shared directories), then remap node
    IDs onto content-addressed keys.
 2. **Spans** — parse every source file with tree-sitter for real line ranges,
-   signatures and docstrings. graphify records only a *start* line and no
+   signatures and docstrings. A bare graph records only a *start* line and no
    signature or body, which is not enough to build a retrieval document or cite
    a range.
 3. **Git** — mine history for co-change, hotspots, ownership (see
@@ -46,18 +48,18 @@ hash moved. Everything else is copied forward from the previous epoch.
 This works because identity and freshness are separate hashes. A node's *key*
 comes from its file, name and kind, so editing a function body leaves its
 identity intact; its *content hash* comes from the source text, so the edit
-marks it dirty. graphify's own IDs are unsuitable as keys — its `ids.py`
+marks it dirty. Upstream extractor IDs are unsuitable as keys — they
 documents a recurring drift bug class, and its dedup pass can collapse
 same-named symbols across files during an update.
 
-Chain it to graphify's existing post-commit hook rather than running a second
+Chain it to a post-commit hook rather than running a second
 watcher.
 
 ## Failure modes
 
 | Symptom | Cause |
 |---|---|
-| `no 'nodes' key` | Not a graphify graph, or a future format. The version range is pinned in `pyproject.toml`. |
+| `no 'nodes' key` | `--graph` was given a file that is not a node-link graph. |
 | span coverage below 50% | `graph.json` was built from a different checkout. Rebuild it. |
-| `all vectors reused` after real edits | The graph was not rebuilt; run `graphify update .` first. |
+| `all vectors reused` after real edits | Stale index — run `dwago build . --force`. |
 | build stops asking for `--yes` | The time estimate exceeded two minutes. Intended. |

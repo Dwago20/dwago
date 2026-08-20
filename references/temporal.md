@@ -1,6 +1,6 @@
 # The git-history layer
 
-graphify has no temporal dimension. This is the part of dwago with no upstream
+No parser can see time. This is the part of dwago with no static
 equivalent, and it answers a question static analysis structurally cannot: *what
 else will I have to change?*
 
@@ -33,7 +33,7 @@ move with everything and would dominate the table.
 
 ### Thresholds
 
-Defaults were calibrated on graphify's own history (1,419 commits, 920 files,
+Defaults were calibrated on a 1,419-commit OSS repository (920 files,
 53,021 candidate pairs). `min_support` is the binding filter by a wide margin:
 
 | min_support | pairs kept (p ≤ 0.01, ≥3 co-occurrences) |

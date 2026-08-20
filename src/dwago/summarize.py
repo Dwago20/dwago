@@ -4,9 +4,11 @@ Each of the largest communities gets a two-sentence architectural summary.
 Summaries are cached in the store keyed by a hash of the member node keys
 and content hashes, so an unchanged community never hits the model twice.
 
-Backends, resolved in order unless forced:
-  claude-cli  -- shells out to the local `claude -p` (needs auth)
-  anthropic   -- uses ANTHROPIC_API_KEY via raw HTTPS, no SDK dependency
+Backends (any LLM works; none is required):
+  auto        -- first of: OPENAI_API_KEY, ANTHROPIC_API_KEY, claude CLI
+  openai      -- OPENAI_API_KEY via raw HTTPS, no SDK dependency
+  anthropic   -- ANTHROPIC_API_KEY via raw HTTPS, no SDK dependency
+  claude-cli  -- shells out to a local `claude -p`
   none        -- skip quietly (build stays LLM-free by default)
 """
 from __future__ import annotations
@@ -46,6 +48,24 @@ def _call_claude_cli(prompt: str, model: str, timeout: int = 90) -> str:
     return r.stdout.strip()
 
 
+def _call_openai(prompt: str, model: str, timeout: int = 90) -> str:
+    key = os.environ.get("OPENAI_API_KEY")
+    if not key:
+        raise RuntimeError("OPENAI_API_KEY not set")
+    body = json.dumps({
+        "model": model,
+        "max_tokens": 300,
+        "messages": [{"role": "user", "content": prompt}],
+    }).encode()
+    req = urllib.request.Request(
+        "https://api.openai.com/v1/chat/completions", data=body,
+        headers={"Authorization": f"Bearer {key}",
+                 "content-type": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        data = json.load(resp)
+    return data["choices"][0]["message"]["content"].strip()
+
+
 def _call_anthropic(prompt: str, model: str, timeout: int = 90) -> str:
     key = os.environ.get("ANTHROPIC_API_KEY")
     if not key:
@@ -66,7 +86,7 @@ def _call_anthropic(prompt: str, model: str, timeout: int = 90) -> str:
 
 def summarize_communities(store: Store, *, top: int = 20,
                           backend: str = "auto",
-                          model: str = "claude-haiku-4-5-20251001",
+                          model: str | None = None,
                           caller=None) -> dict:
     """Returns {written, cached, skipped, errors}. ``caller`` overrides the
     backend entirely (tests use a stub)."""
@@ -77,12 +97,24 @@ def summarize_communities(store: Store, *, top: int = 20,
         " summary TEXT)")
 
     if caller is None:
-        if backend in ("auto", "claude-cli"):
-            caller = lambda p: _call_claude_cli(p, model)  # noqa: E731
-        if backend == "anthropic":
-            caller = lambda p: _call_anthropic(p, model)  # noqa: E731
         if backend == "none":
             return {"written": 0, "cached": 0, "skipped": top, "errors": []}
+        if backend == "auto":
+            if os.environ.get("OPENAI_API_KEY"):
+                backend = "openai"
+            elif os.environ.get("ANTHROPIC_API_KEY"):
+                backend = "anthropic"
+            else:
+                backend = "claude-cli"
+        if backend == "openai":
+            m = model or "gpt-5-mini"
+            caller = lambda p: _call_openai(p, m)  # noqa: E731
+        elif backend == "anthropic":
+            m = model or "claude-haiku-4-5-20251001"
+            caller = lambda p: _call_anthropic(p, m)  # noqa: E731
+        else:
+            m = model or "haiku"
+            caller = lambda p: _call_claude_cli(p, m)  # noqa: E731
 
     groups: dict[int, list] = defaultdict(list)
     names: dict[int, str] = {}

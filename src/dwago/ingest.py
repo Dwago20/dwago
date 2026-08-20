@@ -207,12 +207,18 @@ def ingest(
     graph_json: str | Path | None = None,
     *,
     parse_spans: bool = True,
+    data: dict | None = None,
 ) -> IngestResult:
-    """Load graph.json + parsed spans into ``store``."""
+    """Load a graph (own extraction by default, graph.json when given)
+    plus parsed spans into ``store``."""
     root = Path(project_root).resolve()
-    graph_path = Path(graph_json) if graph_json else root / "graphify-out" / "graph.json"
 
-    data = load_graph_json(graph_path)
+    if data is None:
+        if graph_json is not None:
+            data = load_graph_json(Path(graph_json))
+        else:
+            from .extract import extract_repo
+            data = extract_repo(root)
     raw_nodes = data["nodes"]
     raw_links = _links_of(data)
     result = IngestResult(built_at_commit=data.get("built_at_commit"))
@@ -374,7 +380,7 @@ def ingest(
         )
 
     store.set_meta("built_at_commit", result.built_at_commit)
-    store.set_meta("graph_json_path", str(graph_path))
+    store.set_meta("graph_json_path", str(graph_json) if graph_json else "(own extraction)")
     store.set_meta("span_coverage", round(result.span_coverage, 4))
     store.set_meta("ingest_breakdown", {
         "spans_matched": result.spans_matched,

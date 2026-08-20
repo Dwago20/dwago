@@ -32,7 +32,7 @@ def test_publish_is_visible_and_resolves(tmp_path):
           "source_file": "a.py", "source_location": "L1"}], []))
     assert not Store.exists(tmp_path)
     with Store.begin(tmp_path) as st:
-        ingest(tmp_path, st)
+        ingest(tmp_path, st, tmp_path / 'graphify-out' / 'graph.json')
     assert Store.exists(tmp_path)
     st = Store.open(tmp_path)
     assert st.node_count() == 1
@@ -44,7 +44,7 @@ def test_failed_build_leaves_previous_epoch_intact(tmp_path):
         [{"id": "a", "label": "a.py", "file_type": "code",
           "source_file": "a.py", "source_location": "L1"}], []))
     with Store.begin(tmp_path) as st:
-        ingest(tmp_path, st)
+        ingest(tmp_path, st, tmp_path / 'graphify-out' / 'graph.json')
     first = Store.open(tmp_path).paths.root.name
 
     with pytest.raises(RuntimeError):
@@ -88,7 +88,7 @@ def test_leading_dot_method_labels_match_spans(tmp_path):
          "source_file": "m.py", "source_location": "L2"},
     ], []))
     with Store.begin(tmp_path) as st:
-        res = ingest(tmp_path, st)
+        res = ingest(tmp_path, st, tmp_path / 'graphify-out' / 'graph.json')
     st = Store.open(tmp_path)
     row = st.conn.execute(
         "SELECT signature, start_line, end_line FROM nodes WHERE label = '.update()'"
@@ -103,7 +103,7 @@ def test_file_nodes_get_whole_file_ranges(tmp_path):
         {"id": "m", "label": "m.py", "file_type": "code",
          "source_file": "m.py", "source_location": "L1"}], []))
     with Store.begin(tmp_path) as st:
-        ingest(tmp_path, st)
+        ingest(tmp_path, st, tmp_path / 'graphify-out' / 'graph.json')
     row = Store.open(tmp_path).conn.execute(
         "SELECT start_line, end_line, kind FROM nodes WHERE label='m.py'").fetchone()
     assert row["kind"] == "file"
@@ -117,7 +117,7 @@ def test_dangling_and_self_edges_are_counted_not_crashed(tmp_path):
         [{"source": "a", "target": "ghost", "relation": "calls"},
          {"source": "a", "target": "a", "relation": "calls"}]))
     with Store.begin(tmp_path) as st:
-        res = ingest(tmp_path, st)
+        res = ingest(tmp_path, st, tmp_path / 'graphify-out' / 'graph.json')
     assert res.edges == 0
     assert res.dropped_edges == 2
 
@@ -127,7 +127,7 @@ def test_dirty_keys_reuses_unchanged_vectors(tmp_path):
         [{"id": "a", "label": "a.py", "file_type": "code",
           "source_file": "a.py", "source_location": "L1"}], []))
     with Store.begin(tmp_path) as st:
-        ingest(tmp_path, st)
+        ingest(tmp_path, st, tmp_path / 'graphify-out' / 'graph.json')
         st.set_meta("content_hashes", {"k1": "h1", "k2": "h2"})
         import numpy as np
         st.write_vectors(["k1", "k2"], np.zeros((2, 4), dtype=np.float16))

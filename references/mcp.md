@@ -36,16 +36,16 @@ directly usable in an answer.
 | `explain(symbol)` | Location, signature, docs, neighbours. |
 | `graph_stats()` | Index health. |
 
-## Relationship to graphify's server
+## Design notes
 
-graphify already ships an MCP server with ten tools (`query_graph`, `get_node`,
+Typical graph servers expose raw graph plumbing (`query_graph`, `get_node`,
 `get_neighbors`, `get_community`, `god_nodes`, `graph_stats`, `shortest_path`,
 plus three PR tools) over stdio and HTTP. This is a **superset that replaces
 it**, not a first agent surface.
 
 - `search` / `explain` are upgrades of `query_graph` / `explain` — same job,
   semantic retrieval behind them instead of substring matching.
-- `impact_of` extends graphify's `affected` engine with the temporal overlay.
+- `impact_of` unions the static dependency cone with the temporal overlay.
 - `co_change`, `hotspots` and `owners` have no upstream equivalent.
 
 Run one or the other. Running both gives the agent two tools for every job and
